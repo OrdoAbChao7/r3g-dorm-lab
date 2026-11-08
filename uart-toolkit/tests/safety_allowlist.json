@@ -1,0 +1,200 @@
+{
+  "entries": [
+    {
+      "file": "scripts/verify_firmware.ps1",
+      "line": 10,
+      "sha256": "31c70d36bedeaa3c3272f0ffe269ed303df6716fd5d7ba7b74d1c3922dd2b478",
+      "reason": "sysupgrade image-type label/reference, never executed by verification",
+      "text": "* sysupgrade: tar archive, marked as upgrade-only (never first install)"
+    },
+    {
+      "file": "scripts/verify_firmware.ps1",
+      "line": 49,
+      "sha256": "66a80f67dc7518490ff9cc5a355cf8a9ab68f6ead9544c1f35ebfc211402627c",
+      "reason": "sysupgrade image-type label/reference, never executed by verification",
+      "text": "Size = 7813734;  Hash = \"78c15850ee6d41f23779c23ba73bad7e1b2b33690b9ad8d7e749027fe821d57b\"; Type = \"sysupgrade\" }"
+    },
+    {
+      "file": "scripts/verify_firmware.ps1",
+      "line": 208,
+      "sha256": "ac8f6c8f343a9b7076cfd2b7b4a20b13ddff4c5051cb89d231ce534870f6604b",
+      "reason": "sysupgrade image-type label/reference, never executed by verification",
+      "text": "\"sysupgrade\"   { $note += \"; tar upgrade package - NEVER use for first install\" }"
+    },
+    {
+      "file": "TOOLCHAIN_TEST_REPORT.md",
+      "line": 198,
+      "sha256": "5ef4319646b429f0e4708bd9892c27815315d5b2d4cd45046dd94c5bfbb0918f",
+      "reason": "scanner regression example, not operational guidance",
+      "text": "请再次选择菜单 2。                  -> 违规"
+    },
+    {
+      "file": "TOOLCHAIN_TEST_REPORT.md",
+      "line": 199,
+      "sha256": "051c08782bf0792f56e56e2a2b16c65a3a877fe7170a9e06e48745cf18a4edec",
+      "reason": "scanner regression example, not operational guidance",
+      "text": "请进入菜单 2。                      -> 违规"
+    },
+    {
+      "file": "TOOLCHAIN_TEST_REPORT.md",
+      "line": 200,
+      "sha256": "bd495ac4d9e38ad878ec10d64f260112f5a9282f81028ce3d9dfb5282bfb5f91",
+      "reason": "scanner regression example, not operational guidance",
+      "text": "选择菜单2后等待。                   -> 违规"
+    },
+    {
+      "file": "TOOLCHAIN_TEST_REPORT.md",
+      "line": 201,
+      "sha256": "b2c3d2cdfc65ea149963f0d47603aa3f50cf071b9c7bb99ff306e4dc46bcc63e",
+      "reason": "scanner regression example, not operational guidance",
+      "text": "在 U-Boot 中输入 2。                -> 违规"
+    },
+    {
+      "file": "TOOLCHAIN_TEST_REPORT.md",
+      "line": 202,
+      "sha256": "8ae5c85006dff6dabd095575dc290b5dacaf95672652f8e4ddd2cc376a21264b",
+      "reason": "scanner regression example, not operational guidance",
+      "text": "请执行 mtd write image kernel1。    -> 违规"
+    },
+    {
+      "file": "TOOLCHAIN_TEST_REPORT.md",
+      "line": 203,
+      "sha256": "ce23fb3d0c61530452c292152c67b221e53d7e164077d3fecfff0501d7fbbc66",
+      "reason": "scanner regression example, not operational guidance",
+      "text": "请执行 setenv flag_last_success 0。 -> 违规"
+    },
+    {
+      "file": "scripts/uart_l7a_install.py",
+      "line": 106,
+      "sha256": "c0b0a519aff13f2cc252058bb799a9f387788acff85cfd6c23698559e356c6be",
+      "reason": "authorized L7-A install command; tool requires --allow-tx and --confirm-l7a; not documentation",
+      "text": "command = \"sysupgrade -n \" + args.image"
+    },
+    {
+      "file": "scripts/uart_wifi_config.py",
+      "line": 152,
+      "sha256": "bdaa856f7844a1106f671fdcf2d20157c14a24fe5f35629d55feebeb803e1679",
+      "reason": "authorized Wi-Fi configuration; fixed commands; requires --allow-tx and --confirm-wifi-config",
+      "text": "\"uci set wireless.default_radio0.ssid='R3G-OpenWrt'\","
+    },
+    {
+      "file": "scripts/uart_wifi_config.py",
+      "line": 153,
+      "sha256": "0d77d1c40ee204295d6eef7b1732810e975252e998d602a205429de6ac68b5ca",
+      "reason": "authorized Wi-Fi configuration; fixed commands; requires --allow-tx and --confirm-wifi-config",
+      "text": "\"uci set wireless.default_radio0.encryption='psk2'\","
+    },
+    {
+      "file": "scripts/uart_wifi_config.py",
+      "line": 154,
+      "sha256": "cad8dd03d8838cb72b0b68d748852f40755ebdd4ca8da1ddb30442cb897502d6",
+      "reason": "authorized Wi-Fi configuration; fixed commands; requires --allow-tx and --confirm-wifi-config",
+      "text": "'uci set wireless.default_radio0.key=\"$WIFIKEY\"',"
+    },
+    {
+      "file": "scripts/uart_wifi_config.py",
+      "line": 155,
+      "sha256": "c42d43c1cba095e0f3969d42751f0ca1fd4247b31807803f9210418e78ac9e44",
+      "reason": "authorized Wi-Fi configuration; fixed commands; requires --allow-tx and --confirm-wifi-config",
+      "text": "\"uci set wireless.default_radio0.disabled='0'\","
+    },
+    {
+      "file": "scripts/uart_wifi_config.py",
+      "line": 156,
+      "sha256": "e310f5cf85fd75fe9509741628f175b6290d67dd993ed24e25b6415f47ba4743",
+      "reason": "authorized Wi-Fi configuration; fixed commands; requires --allow-tx and --confirm-wifi-config",
+      "text": "\"uci set wireless.radio0.disabled='0'\","
+    },
+    {
+      "file": "scripts/uart_wifi_config.py",
+      "line": 157,
+      "sha256": "aac4970e53e59e9b0fcb22c5c9f36b197e868ffe35e90efbb71da37cb9bc67b2",
+      "reason": "authorized Wi-Fi configuration; fixed commands; requires --allow-tx and --confirm-wifi-config",
+      "text": "\"uci set wireless.radio0.country='CN'\","
+    },
+    {
+      "file": "scripts/uart_wifi_config.py",
+      "line": 158,
+      "sha256": "129bf657ec4bfdac3d5aa7ee3cd4037aa180ac620c9ac52f46244f6913b2dd09",
+      "reason": "authorized Wi-Fi configuration; fixed commands; requires --allow-tx and --confirm-wifi-config",
+      "text": "\"uci set wireless.default_radio1.ssid='R3G-OpenWrt-5G'\","
+    },
+    {
+      "file": "scripts/uart_wifi_config.py",
+      "line": 159,
+      "sha256": "63eda920bdb728279cddf3e0965668140a47533f3742434e223a861ebbf39601",
+      "reason": "authorized Wi-Fi configuration; fixed commands; requires --allow-tx and --confirm-wifi-config",
+      "text": "\"uci set wireless.default_radio1.encryption='psk2'\","
+    },
+    {
+      "file": "scripts/uart_wifi_config.py",
+      "line": 160,
+      "sha256": "74f8f70c79b6e258ef32eb08330b1f1f44954f74042262ee098fe2b16b48e1ad",
+      "reason": "authorized Wi-Fi configuration; fixed commands; requires --allow-tx and --confirm-wifi-config",
+      "text": "'uci set wireless.default_radio1.key=\"$WIFIKEY\"',"
+    },
+    {
+      "file": "scripts/uart_wifi_config.py",
+      "line": 161,
+      "sha256": "ad3e5daf28c7fa70c266d2ded0b1fe107957adae45530920c3986c4812538f13",
+      "reason": "authorized Wi-Fi configuration; fixed commands; requires --allow-tx and --confirm-wifi-config",
+      "text": "\"uci set wireless.default_radio1.disabled='0'\","
+    },
+    {
+      "file": "scripts/uart_wifi_config.py",
+      "line": 162,
+      "sha256": "ac1788ab3b80d98144881102529e6616fb92c4f18c4dc4566df11556dac67748",
+      "reason": "authorized Wi-Fi configuration; fixed commands; requires --allow-tx and --confirm-wifi-config",
+      "text": "\"uci set wireless.radio1.disabled='0'\","
+    },
+    {
+      "file": "scripts/uart_wifi_config.py",
+      "line": 163,
+      "sha256": "64c734b09bee072488086da4302f1d3fec4d2f086691d32b812cc504beda3bc9",
+      "reason": "authorized Wi-Fi configuration; fixed commands; requires --allow-tx and --confirm-wifi-config",
+      "text": "\"uci set wireless.radio1.country='CN'\","
+    },
+    {
+      "file": "scripts/uart_wifi_config.py",
+      "line": 164,
+      "sha256": "9a37ea30eb782a37b76058f071b87aa17ca42d9d712f44e3690542b999b18cd7",
+      "reason": "authorized Wi-Fi configuration; fixed commands; requires --allow-tx and --confirm-wifi-config",
+      "text": "\"uci commit wireless\","
+    },
+    {
+      "file": "scripts/uart_luci_fix_uhttpd.py",
+      "line": 39,
+      "sha256": "1b3addbbb734f2d732aba994a315b824a6d092e4f6f750ea8b20fc2227cb1cc7",
+      "reason": "authorized LuCI uhttpd fix; fixed commands; requires --allow-tx and --confirm-luci-fix; removes only the stale lua_prefix entry",
+      "text": "(\"uci commit uhttpd; echo UCI_COMMIT_RC=$?\", 15.0),"
+    },
+    {
+      "file": "scripts/uart_set_lan_dns.py",
+      "line": 5,
+      "sha256": "6b7368878560e86547f8d8e7865e698fc60f16470b11e8fc7bae1f0ac70f5fd6",
+      "reason": "authorized LAN DNS redirection to the ESP32 ad-blocker; fixed commands; requires --allow-tx and --confirm-lan-dns",
+      "text": "uci set dhcp.@dnsmasq[0].noresolv='1'"
+    },
+    {
+      "file": "scripts/uart_set_lan_dns.py",
+      "line": 8,
+      "sha256": "cdeb4ee9fac6d861c2c57520257bde08b087f14c930c615c857b9837ab04f165",
+      "reason": "authorized LAN DNS redirection to the ESP32 ad-blocker; fixed commands; requires --allow-tx and --confirm-lan-dns",
+      "text": "uci commit dhcp"
+    },
+    {
+      "file": "scripts/uart_set_lan_dns.py",
+      "line": 42,
+      "sha256": "00096705033360a270f571fafc25a012463cfffac60f254c3043cffc0d2be046",
+      "reason": "authorized LAN DNS redirection to the ESP32 ad-blocker; fixed commands; requires --allow-tx and --confirm-lan-dns",
+      "text": "\"uci set dhcp.@dnsmasq[0].noresolv='1'\","
+    },
+    {
+      "file": "scripts/uart_set_lan_dns.py",
+      "line": 45,
+      "sha256": "ae731b441b5a6e2d53a67165346afccf0f02d03873e223f243d96169a1314520",
+      "reason": "authorized LAN DNS redirection to the ESP32 ad-blocker; fixed commands; requires --allow-tx and --confirm-lan-dns",
+      "text": "\"uci commit dhcp\","
+    }
+  ]
+}

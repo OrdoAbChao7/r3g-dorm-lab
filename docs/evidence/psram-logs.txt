@@ -1,0 +1,29 @@
+# ESP32-S3 PSRAM failure and fixed boot logs
+
+## First build: compile and flash succeeded, DNS failed
+
+Application image: 1,306,384 B, written at 0x10000.
+Serial log:
+
+[log] PSRAM allocation failed -- query log off
+[cache] PSRAM allocation failed -- caching off
+[blocklist] no PSRAM -- build with PSRAM=opi for an N16R8
+[dns] no memory for the pending table or receive pool
+
+`ps_malloc` / `ps_calloc` were 7-byte stubs returning NULL. The build was missing
+`-DBOARD_HAS_PSRAM` (release FQBN equivalent: `PSRAM=opi`).
+
+## Fixed build: clean rebuild with the define
+
+Application image: 1,306,464 B.
+
+[log] 6000 entries, 585 KB PSRAM
+[cache] 768 replies, 540 KB PSRAM
+[blocklist] arena 4.7 MB, room for ~191,566 domains
+[blocklist] restored 211,465 domains from flash in 2128 ms
+[dns] serving on 192.168.1.53:53 (udp+v6, tcp+v6), 128-packet receive queue
+[web] settings page at http://192.168.1.53
+
+Lesson: compile success, link success and flash success are not runtime
+capability. Verify the allocator, the arena size and that DNS is actually
+serving.

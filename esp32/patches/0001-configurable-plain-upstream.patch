@@ -1,0 +1,239 @@
+--- a/ESP32-AdBlocker/settings.h
++++ b/ESP32-AdBlocker/settings.h
+@@ -22,6 +22,9 @@
+   // device itself uses for ntfy, NTP and the blocklist download.
+   String   dns1 = "1.1.1.1";
+   String   dns2 = "1.0.0.1";
++  // Plain upstream port for dns1/dns2. The router's local names always
++  // stay on port 53; this only affects the two plain upstreams.
++  uint16_t dnsPort = 53;
+ 
+   // ntfy server
+   String   ntfyHost = "ntfy.sh";
+--- a/ESP32-AdBlocker/settings.cpp
++++ b/ESP32-AdBlocker/settings.cpp
+@@ -20,6 +20,7 @@
+ const char* K_SMASK   = "smask";
+ const char* K_DNS1    = "dns1";
+ const char* K_DNS2    = "dns2";
++const char* K_DNSPORT = "dnsport";
+ const char* K_HOST    = "host";
+ const char* K_PORT    = "port";
+ const char* K_TLS     = "tls";
+@@ -73,6 +74,7 @@
+   g_settings.staticMask    = prefs.getString(K_SMASK, "");
+   g_settings.dns1          = prefs.getString(K_DNS1, d.dns1);
+   g_settings.dns2          = prefs.getString(K_DNS2, d.dns2);
++  g_settings.dnsPort       = (uint16_t)prefs.getUInt(K_DNSPORT, d.dnsPort);
+   g_settings.ntfyHost      = prefs.getString(K_HOST, d.ntfyHost);
+   g_settings.ntfyPort      = (uint16_t)prefs.getUInt(K_PORT, d.ntfyPort);
+   g_settings.ntfyTls       = prefs.getBool(K_TLS, d.ntfyTls);
+@@ -133,6 +135,7 @@
+   prefs.putString(K_SMASK,   g_settings.staticMask);
+   prefs.putString(K_DNS1,    g_settings.dns1);
+   prefs.putString(K_DNS2,    g_settings.dns2);
++  prefs.putUInt(K_DNSPORT,   g_settings.dnsPort);
+   prefs.putString(K_HOST,    g_settings.ntfyHost);
+   prefs.putUInt(K_PORT,      g_settings.ntfyPort);
+   prefs.putBool(K_TLS,       g_settings.ntfyTls);
+--- a/ESP32-AdBlocker/webconfig.cpp
++++ b/ESP32-AdBlocker/webconfig.cpp
+@@ -178,7 +178,9 @@
+ 
+   p += "<h2>Upstream DNS</h2>";
+   p += "<div class=row><div>" + textField("Primary", "dns1", s.dns1) +
+-       "</div><div>" + textField("Secondary", "dns2", s.dns2) + "</div></div>";
++       "</div><div>" + textField("Secondary", "dns2", s.dns2) +
++       "</div><div><label>Port</label><input type=number name=dnsport min=1 max=65535 value='" +
++       String(s.dnsPort) + "'></div></div>";
+   p += "<small>Allowed lookups are forwarded here. Not your router -- it will point "
+        "back at this device.</small>";
+   p += "<label><input type=checkbox name=dot" + String(s.dotEnabled ? " checked" : "") +
+@@ -325,6 +327,7 @@
+   String tz    = trimmedArg("tzcustom");
+   if (tz.isEmpty()) tz = trimmedArg("tzsel");
+   long   port    = server.arg("port").toInt();
++  long   dnsport = server.arg("dnsport").toInt();
+   long   refresh = server.arg("refresh").toInt();
+   long   ledPin  = server.arg("ledpin").toInt();
+   long   ledBrt  = server.arg("ledbrt").toInt();
+@@ -336,6 +339,10 @@
+     return;
+   }
+   if (port < 1 || port > 65535)     { sendForm("Port must be 1-65535."); return; }
++  if (dnsport < 1 || dnsport > 65535) {
++    sendForm("Upstream DNS port must be 1-65535.");
++    return;
++  }
+ 
+   String ipError;
+   if (!settings_validStaticIp(sip, sgw, smask, ipError)) { sendForm(ipError); return; }
+@@ -346,10 +353,37 @@
+     sendForm("Secondary upstream DNS must be an IPv4 address, or blank.");
+     return;
+   }
+-  if (!sip.isEmpty() && (dns1 == sip || dns2 == sip)) {
++  String selfIp = WiFi.localIP().toString();
++  if ((!sip.isEmpty() && (dns1 == sip || dns2 == sip)) ||
++      (selfIp != "0.0.0.0" && (dns1 == selfIp || dns2 == selfIp))) {
+     sendForm("Upstream DNS cannot be this device's own address.");
+     return;
+   }
++  if (dns1 == "0.0.0.0" || dns2 == "0.0.0.0" ||
++      dns1 == "127.0.0.1" || dns2 == "127.0.0.1") {
++    sendForm("Upstream DNS must be a real resolver address.");
++    return;
++  }
++  {
++    uint32_t d1 = 0, d2 = 0;
++    parseIPv4(dns1, d1);
++    if (!dns2.isEmpty()) parseIPv4(dns2, d2);
++    // 198.18.0.0/15 is the fake-IP / RFC 2544 benchmark range; never a real
++    // upstream. In particular 198.18.0.1:53 is Mihomo's utun listener.
++    if ((d1 & 0xFFFE0000u) == 0xC6120000u ||
++        (!dns2.isEmpty() && (d2 & 0xFFFE0000u) == 0xC6120000u)) {
++      sendForm("Upstream DNS cannot be in the fake-IP/benchmark range 198.18.0.0/15.");
++      return;
++    }
++  }
++  if (dnsport == 53) {
++    String gw = !sgw.isEmpty() ? sgw : WiFi.gatewayIP().toString();
++    if (gw != "0.0.0.0" && !gw.isEmpty() && (dns1 == gw || dns2 == gw)) {
++      sendForm("Refusing the router itself on port 53: that is a DNS loop. "
++               "Use the proxy's own DNS port instead.");
++      return;
++    }
++  }
+   {
+     // One URL per line; blank lines dropped.
+     String clean;
+@@ -435,6 +469,7 @@
+   s.staticMask    = smask;
+   s.dns1          = dns1;
+   s.dns2          = dns2;
++  s.dnsPort       = (uint16_t)dnsport;
+   s.blocklistUrl  = blurl;
+   s.dotEnabled    = server.hasArg("dot");
+   s.dotHost       = dothost;
+--- a/ESP32-AdBlocker/sinkhole.cpp
++++ b/ESP32-AdBlocker/sinkhole.cpp
+@@ -216,7 +216,7 @@
+ bool serverAddr(Route r, struct sockaddr_in& out) {
+   memset(&out, 0, sizeof(out));
+   out.sin_family = AF_INET;
+-  out.sin_port = htons(DNS_PORT);
++  out.sin_port = htons(r == R_ROUTER ? DNS_PORT : g_settings.dnsPort);
+   switch (r) {
+     case R_DOT:
+       return false;   // not a network address: queries go through dot::submit()
+@@ -428,7 +428,7 @@
+       if (serverAddr(r, to)) {
+         ip_addr_t a;
+         ip_addr_set_ip4_u32_val(a, to.sin_addr.s_addr);
+-        sent = rawSend(upPcb, a, DNS_PORT, p.query, p.qlen);
++        sent = rawSend(upPcb, a, ntohs(to.sin_port), p.query, p.qlen);
+       }
+     }
+     if (sent) {
+@@ -509,7 +509,8 @@
+     } else {
+       struct sockaddr_in expect;
+       if (k.src != SRC_UPSTREAM || !serverAddr(r, expect) || !IP_IS_V4(&k.addr) ||
+-          ip4_addr_get_u32(ip_2_ip4(&k.addr)) != expect.sin_addr.s_addr || k.port != DNS_PORT) {
++          ip4_addr_get_u32(ip_2_ip4(&k.addr)) != expect.sin_addr.s_addr ||
++          k.port != ntohs(expect.sin_port)) {
+         return;
+       }
+     }
+@@ -586,7 +587,8 @@
+ }
+ 
+ // One query to one server over TCP, with timeouts. Returns the reply length.
+-int tcpExchange(uint32_t server, const uint8_t* q, int qlen, uint8_t* out, int cap) {
++int tcpExchange(uint32_t server, uint16_t port, const uint8_t* q, int qlen, uint8_t* out,
++                int cap) {
+   int fd = socket(AF_INET, SOCK_STREAM, 0);
+   if (fd < 0) return 0;
+   struct timeval tv = {2, 0};
+@@ -594,7 +596,7 @@
+   setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
+   struct sockaddr_in to = {};
+   to.sin_family = AF_INET;
+-  to.sin_port = htons(DNS_PORT);
++  to.sin_port = htons(port);
+   to.sin_addr.s_addr = server;
+   int n = 0;
+   uint8_t lenb[2];
+@@ -623,9 +625,11 @@
+   for (int i = 0; i < d.nroutes; i++) {
+     Route r = (Route)d.routes[i];
+     if (r == R_DOT) continue;   // DoT replies come back to the UDP task's pending table
+-    uint32_t server = r == R_DNS1 ? dns1Ip : r == R_DNS2 ? dns2Ip : routerIp;
+-    if (!server) continue;
+-    int n = tcpExchange(server, q, qlen, out, cap);
++    struct sockaddr_in sa;
++    if (!serverAddr(r, sa)) continue;
++    uint32_t server = sa.sin_addr.s_addr;
++    uint16_t port = ntohs(sa.sin_port);
++    int n = tcpExchange(server, port, q, qlen, out, cap);
+     if (n < dnsmsg::HEADER || !dnsmsg::sameQuestion(out, n, qq)) continue;
+     uint8_t rc = dnsmsg::rcode(out);
+     if (rc == dnsmsg::RC_SERVFAIL || rc == dnsmsg::RC_REFUSED) continue;
+@@ -731,6 +735,37 @@
+ bool begin() {
+   dns1Ip = parseV4(g_settings.dns1);
+   dns2Ip = parseV4(g_settings.dns2);
++  {
++    // A plain upstream that points back at this device, or at the router's
++    // dnsmasq on port 53, would loop. Disable such a route at runtime too,
++    // so a stale NVS value cannot reintroduce the loop.
++    uint32_t self = (uint32_t)WiFi.localIP();
++    uint32_t gw   = (uint32_t)WiFi.gatewayIP();
++    auto looped = [&](uint32_t ip) {
++      if (!ip) return false;
++      if (self && ip == self) return true;
++      return g_settings.dnsPort == DNS_PORT && gw && ip == gw;
++    };
++    if (looped(dns1Ip)) {
++      Serial.println("[dns] upstream 1 would loop (router/self on port 53); disabled");
++      dns1Ip = 0;
++    }
++    if (looped(dns2Ip)) {
++      Serial.println("[dns] upstream 2 would loop (router/self on port 53); disabled");
++      dns2Ip = 0;
++    }
++    // 198.18.0.0/15 is the fake-IP / RFC 2544 benchmark range; never a real
++    // upstream. Covers the forbidden 198.18.0.1:53 (Mihomo utun listener).
++    auto fakeRange = [](uint32_t ip) { return (ip & 0xFFFE0000u) == 0xC6120000u; };
++    if (fakeRange(dns1Ip)) {
++      Serial.println("[dns] upstream 1 is in the fake-IP/benchmark range; disabled");
++      dns1Ip = 0;
++    }
++    if (fakeRange(dns2Ip)) {
++      Serial.println("[dns] upstream 2 is in the fake-IP/benchmark range; disabled");
++      dns2Ip = 0;
++    }
++  }
+   if (started) return true;
+   if (!pend || !pool) prealloc();
+   if (!pend || !pool || !freeQ || !workQ) {
+@@ -810,7 +845,9 @@
+ }
+ 
+ bool resolves(const char* host) {
+-  uint32_t server = dns1Ip ? dns1Ip : parseV4(g_settings.dns1);
++  // Only the validated upstreams; never fall back to the raw setting,
++  // which may be the looped value begin() just disabled.
++  uint32_t server = dns1Ip ? dns1Ip : dns2Ip;
+   if (!server) return false;
+   uint8_t q[300], r[DNS_MAX_PACKET];
+   uint16_t qid = (uint16_t)esp_random();
+@@ -823,7 +860,7 @@
+   setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+   struct sockaddr_in to = {};
+   to.sin_family = AF_INET;
+-  to.sin_port = htons(DNS_PORT);
++  to.sin_port = htons(g_settings.dnsPort);
+   to.sin_addr.s_addr = server;
+   bool ok = false;
+   if (sendto(fd, q, qlen, 0, (struct sockaddr*)&to, sizeof(to)) == qlen) {

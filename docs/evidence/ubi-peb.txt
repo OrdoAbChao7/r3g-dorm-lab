@@ -1,0 +1,19 @@
+# UBI image sequence at the failure point
+
+Read-only inspection from the OpenWrt initramfs (no NAND write):
+
+| PEB | image_seq | Meaning |
+|---:|---|---|
+| 0 | 0x34dfa910 = 887073040 | new sequence, matches expected |
+| 255 | 0x34dfa910 = 887073040 | new sequence |
+| 256 | 0x6ea1630a = 1856070410 | old sequence |
+| 257 | 0x6ea1630a = 1856070410 | old sequence |
+
+The first 256 PEBs (32 MiB) were part of the new UBI sequence; from PEB 256
+onward the old sequence remained. UBI requires one sequence across the whole
+mtd9 partition and refused to attach with error -22.
+
+The recovery was a full `sysupgrade -n`, which ran `ubiformat` over all 940 PEBs
+and created fresh `rootfs` and `rootfs_data` volumes. The cause of the split
+sequence was never conclusively proven; do not attribute it to a single write
+without evidence.

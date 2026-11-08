@@ -1,0 +1,20 @@
+# Sanitized printenv flags (U-Boot menu 4)
+# No serial number, MAC, SSID or credentials.
+
+flag_last_success=1
+flag_try_sys1_failed=0
+flag_try_sys2_failed=0
+flag_boot_success=1
+flag_boot_type=2
+flag_boot_rootfs=1
+bootcmd=tftp
+bootdelay=5
+Environment size: 791/4092
+
+# Interpretation:
+# - with both failed flags at 0 and last_success=1, U-Boot prefers System 2.
+# - the uImage CRC passed, so U-Boot did not fall back.
+# - the rootfs panic happened after U-Boot hand-off and did not set
+#   flag_try_sys2_failed.
+# The exact semantics of flag_boot_type / flag_boot_rootfs / flag_boot_success
+# were not confirmed and were never modified.

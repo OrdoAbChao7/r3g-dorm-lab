@@ -1,0 +1,10 @@
+# Normalize line endings for a repo that is used on Windows and Linux.
+* text=auto eol=lf
+
+# Windows-native scripts can stay LF; PowerShell handles both.
+*.ps1 text eol=lf
+*.cmd text eol=lf
+*.bat text eol=lf
+
+# Patch files must keep their exact diff content.
+*.patch -text

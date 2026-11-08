@@ -1,0 +1,7 @@
+firmware/**/*.bin
+logs/*
+!logs/.gitkeep
+reports/PREFLIGHT_*.md
+tests/tmp/*
+__pycache__/
+*.pyc

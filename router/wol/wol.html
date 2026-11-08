@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>远程开机</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; margin: 0; padding: 24px;
+         display: flex; justify-content: center; }
+  .card { width: 100%; max-width: 420px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  p.sub { margin: 0 0 20px; opacity: .6; font-size: 13px; }
+  label { display: block; font-size: 13px; margin: 0 0 6px; opacity: .8; }
+  input { width: 100%; box-sizing: border-box; padding: 10px 12px; font-size: 15px;
+          border: 1px solid #8884; border-radius: 8px; background: transparent; color: inherit; }
+  button { width: 100%; margin-top: 16px; padding: 14px; font-size: 16px; border: 0;
+           border-radius: 10px; background: #2f6fed; color: #fff; }
+  button:disabled { opacity: .5; }
+  #status { margin-top: 16px; font-size: 14px; min-height: 20px; }
+  .ok { color: #1a7f37; }
+  .err { color: #c62828; }
+  .hint { margin-top: 24px; font-size: 12px; line-height: 1.6; opacity: .55; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>远程开机</h1>
+  <p class="sub">向局域网内的台式机发送 WoL 魔术包</p>
+
+  <label for="token">访问口令</label>
+  <input id="token" type="password" autocomplete="off" placeholder="输入一次，浏览器会记住">
+  <button id="go">开机</button>
+  <div id="status"></div>
+
+  <div class="hint">
+    只能在内网使用（连着 R3G 的 Wi-Fi 或 LAN）。<br>
+    目标机器需要：网线接在 R3G 的 LAN 口、主板网卡已启用 Wake on Magic Packet。
+  </div>
+</div>
+<script>
+  const tokenInput = document.getElementById('token');
+  const go = document.getElementById('go');
+  const status = document.getElementById('status');
+
+  tokenInput.value = localStorage.getItem('wol_token') || '';
+  tokenInput.addEventListener('change', () => localStorage.setItem('wol_token', tokenInput.value.trim()));
+
+  function show(text, cls) {
+    status.textContent = text;
+    status.className = cls || '';
+  }
+
+  go.addEventListener('click', async () => {
+    // Normalise: keep letters and digits only, force lowercase.
+    const token = tokenInput.value.trim().toLowerCase().replace(/[^0-9a-z]/g, '');
+    if (!token) { show('请先填写访问口令', 'err'); tokenInput.focus(); return; }
+    tokenInput.value = token;
+    localStorage.setItem('wol_token', token);
+
+    go.disabled = true;
+    show('正在发送…');
+    try {
+      const res = await fetch('/cgi-bin/wol', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'k=' + encodeURIComponent(token)
+      });
+      const data = await res.json();
+      if (data.ok) show('魔术包已发送，稍等 5–20 秒', 'ok');
+      else if (data.error === 'unauthorized') show('口令不对', 'err');
+      else show('发送失败：' + (data.error || 'unknown'), 'err');
+    } catch (e) {
+      show('请求失败：' + e.message, 'err');
+    } finally {
+      go.disabled = false;
+    }
+  });
+</script>
+</body>
+</html>

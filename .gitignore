@@ -1,0 +1,37 @@
+# Device data and secrets
+logs/
+backups/
+firmware/
+*.bin
+*.trx
+*.zip
+*.7z
+*.gz
+*.rx
+*.log
+*.pcap
+
+# Credentials
+secrets.h
+config.json
+*.pem
+*.key
+*.p12
+.env
+subscription*
+profile*.yaml
+
+# Build output
+__pycache__/
+*.pyc
+.venv/
+.pio/
+dist/
+esp32/build/*.log
+
+# Vendored upstream clone (use a documented commit; do not commit)
+router/flash/OpenWRTInvasion/
+
+# OS
+.DS_Store
+Thumbs.db
