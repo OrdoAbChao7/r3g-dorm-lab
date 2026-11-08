@@ -56,7 +56,9 @@ esptool --port COMx --baud 921600 write-flash 0x10000 adblocker-v1.0.3-app.bin
 
 `tools/flash_candidate_app.ps1` and `tools/flash_adblocker.ps1` wrap the same
 operation. Keep the ESP32 and the R3G UART on different COM ports; the scripts
-should refuse the wrong adapter.
+should refuse the wrong adapter. The candidate helper pins the reference build's
+SHA-256 and size; update `$expectedSha` and `$expectedSize` if you build your own
+image.
 
 ## Verify
 

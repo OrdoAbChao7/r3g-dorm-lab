@@ -11,6 +11,14 @@
 - 浏览器能打开 `http://192.168.31.1`，并**至少登录过一次后台**（脚本需要 token）。
 - 关闭对 `192.168.31.1` 的代理劫持（脚本会自动清除 HTTP(S)_PROXY）。
 
+## 准备工具
+
+脚本默认从 `router/flash/OpenWRTInvasion` 查找上游工具。它不随本仓库分发：
+
+```bash
+git clone https://github.com/acecilia/OpenWRTInvasion.git router/flash/OpenWRTInvasion
+```
+
 ## 一键启动
 
 ```powershell
