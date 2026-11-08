@@ -13,6 +13,7 @@ the upstream source tree.
 | Garionhk/ESP32-AdBlocker-N16R8 | https://github.com/Garionhk/ESP32-AdBlocker-N16R8 | AGPL-3.0; deployed firmware and source are upstream |
 | mihomo (Clash.Meta) | https://github.com/MetaCubeX/mihomo | GPL-3.0; binary is not included |
 | Hagezi DNS blocklists | https://github.com/hagezi/dns-blocklists | See upstream repository for the list license |
+| Anti-AD | https://anti-ad.net/ | See upstream site for the list license |
 | Tailscale | https://tailscale.com/ | Client license per upstream |
 | OpenWRTInvasion | https://github.com/acecilia/OpenWRTInvasion | See upstream repository; used only for the initial stock shell |
 | PlatformIO / pioarduino | https://platformio.org/ | Build tooling |

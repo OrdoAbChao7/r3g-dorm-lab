@@ -26,6 +26,9 @@ If you fork this repository, keep it that way. Do not commit:
 ## Network exposure
 
 - Keep SSH, LuCI, the mihomo control API and the WoL endpoint on the LAN.
+- Set a non-empty `secret` on the mihomo control API. `secret: ""` removes the
+  authentication boundary for every LAN client; binding the API to a LAN address
+  is not a substitute for a secret.
 - The WoL CGI uses a shared token in `/etc/wol.token` (mode 600). Treat it as a
   password; rotate it if it appears in a screenshot or log.
 - The ESP32 web UI uses HTTP Basic Auth. Do not expose it to the WAN.

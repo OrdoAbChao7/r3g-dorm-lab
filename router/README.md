@@ -26,36 +26,50 @@ Roll back with:
 
 ## DNS failover
 
-`dns_failover.sh` is a watchdog for the ESP32 upstream:
+`dns_failover_mihomo.sh` is the current watchdog. It assumes dnsmasq's upstream
+is mihomo on `127.0.0.1#1053`:
 
-- `FAILOVER_FALLBACK_1`, `FAILOVER_FALLBACK_2`: fallback servers (the defaults
-  are documentation IPs; replace them)
-- 2 consecutive failures switch to fallback
-- 3 consecutive successes switch back
-- state/log: `/www/dns_failover.log`
-- manual: `sh dns_failover.sh force-primary|force-fallback|status`
+- primary: `127.0.0.1#1053` (mihomo DNS)
+- fallback: `FAILOVER_FALLBACK_1` / `FAILOVER_FALLBACK_2` (set your campus
+  resolvers; the defaults are documentation IPs)
+- health check: mihomo API `/version` + `/dns/query`; one failed check is
+  re-tested after 2 seconds
+- 1 failed check switches to fallback; 3 consecutive healthy checks switch back
+- only `dhcp.@dnsmasq[0].server` is changed and dnsmasq is reloaded; mihomo is
+  never restarted
+- state/log: `/tmp/dns_failover_mihomo.state`, `/tmp/dns_failover_mihomo.log`
+- manual: `sh dns_failover_mihomo.sh status|force-primary|force-fallback`
 
 Install it on cron (every minute) after testing manually.
 
+`dns_failover.sh` is the older ESP32-upstream watchdog, kept for the historical
+two-layer architecture. Do not run both.
+
 ## Blocklist refresh
 
-`blocklist/update_blocklist.sh` downloads Hagezi Pro (or `BL_URL`), writes
-`/www/blocklist.txt`, keeps `/www/blocklist.txt.bak`, and refills the ESP32's
-snapshot source. Test with `blocklist/test_update_blocklist.sh` before deploying.
+`blocklist/update_chinese_lists.sh` is the current anti-AD refresher:
 
-Typical cron entry (UTC; adjust to your timezone):
+- downloads Anti-AD and Hagezi Light, validates size/count/HTML/drop
+- rebuilds the merged domain list, adds `+.` prefixes, converts it to MRS with
+  `mihomo convert-ruleset`
+- validates with `mihomo -t`
+- hot-reloads the provider through `PUT /providers/rules/antiad`; it does not
+  restart mihomo
+- keeps `.bak` files and restores the old MRS/YAML if validation fails
+- typical cron entry (UTC; adjust to your timezone):
 
-```text
-40 18 * * * /usr/bin/update_blocklist.sh
-```
+  ```text
+  45 18 * * * /usr/bin/update_chinese_lists.sh
+  ```
 
-Rollback: `sh update_blocklist.sh rollback`.
+`blocklist/update_blocklist.sh` is the older Hagezi Pro updater for the ESP32
+fallback path. Test with `blocklist/test_update_blocklist.sh` before deploying.
 
 ## mihomo drill
 
 `mihomo_drill.sh` stops mihomo, probes DNS/HTTP, restarts it, and probes again.
 It only stops the service; it does not change configuration. Use it to verify
-that mihomo is not a DNS single point.
+that the DNS failover watchdog covers a mihomo outage.
 
 ## Tailscale patches
 

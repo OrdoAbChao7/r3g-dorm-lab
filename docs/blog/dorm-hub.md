@@ -1,4 +1,6 @@
 > 这是两篇中的下篇。上篇写 R3G 怎么从半套固件和 1 秒复位里被 UART 救回来：[只刷了 kernel1](./uart-recovery.md)。
+>
+> **2026-11-08 晚更新**：本文记录的是 ESP32 在客户端 DNS 链路上的阶段。之后链路已改为 `dnsmasq → mihomo 127.0.0.1#1053`，ESP32 退出客户端链路；去广告改由 mihomo anti-AD MRS 在连接层完成，DNS 回退改为 `dns_failover_mihomo.sh`。最新架构与完整复盘见 [项目复盘](./retrospective.md)。
 
 ## 能开机，不等于能生活
 
@@ -253,9 +255,9 @@ IPv6 也一样：当前 `wan6` 没有全局地址，AAAA 查询为空，RA/DHCPv
 现在能工作的部分：
 
 - R3G 跑 OpenWrt 25.12.6，WAN/LAN/Wi-Fi/SSH/LuCI 正常；
-- dnsmasq → ESP32 → mihomo 的 DNS 链正常，211,465 条黑名单生效；
-- ESP32 断电后自动回落到校园 DNS，恢复后自动切回；
-- 黑名单每日更新，带 `.bak` 和回滚；
+- dnsmasq → mihomo `127.0.0.1#1053` 的 DNS 链正常，anti-AD MRS 177,307 条在连接层生效；
+- mihomo DNS 故障时自动回落到校园 DNS，恢复后自动切回；
+- anti-AD 每日更新，`mihomo -t` 校验后 API 热重载，不重启；
 - WOL 网页入口、Tailscale 外网入口、Windows 代理自动切换都已就位。
 
 还没验证的部分：
@@ -264,9 +266,9 @@ IPv6 也一样：当前 `wan6` 没有全局地址，AAAA 查询为空，RA/DHCPv
 - ntfy 消息是否真的送达手机；
 - 真实 WOL 唤醒（需要台式机接回 LAN）；
 - 手机端 Tailscale 外网开机；
-- mihomo 重启恢复、上游超时注入、24 小时以上稳定性；
+- 真实 kill mihomo 演练、24 小时以上稳定性；
 - 启用 IPv6 后是否会绕过过滤。
 
-这套系统的目标不是“永不断网”，而是**每种断法都有边界**：ESP32 挂了能回落，mihomo 挂了不影响 DNS，外网进不来但 Tailscale 能进，配置改了能回滚。做到这一步，它才算从“能开机”变成了“能生活”。
+这套系统的目标不是“永不断网”，而是**每种断法都有边界**：mihomo DNS 挂了能回落校园 DNS，mihomo 进程挂了不影响普通上网，外网进不来但 Tailscale 能进，配置改了能回滚。做到这一步，它才算从“能开机”变成了“能生活”。
 
-上篇在这里：[只刷了 kernel1](./uart-recovery.md)。
+上篇在这里：[只刷了 kernel1](./uart-recovery.md)。后续架构演进与复盘：[项目复盘](./retrospective.md)。

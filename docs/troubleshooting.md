@@ -130,9 +130,9 @@ poisoned; find out who answered.
 
 ### DNS loop
 
-If the ESP32 upstream points at `192.168.1.1:53`, the chain becomes
-`dnsmasq → ESP32 → dnsmasq`. Use mihomo's dedicated listener
-`192.168.1.1:1053` and leave the secondary empty.
+The current chain is `dnsmasq :53 → mihomo 127.0.0.1:1053`. If you add the ESP32
+back, its upstream must point at mihomo's dedicated listener (`1053`), never at
+`192.168.1.1:53`; the latter becomes `dnsmasq → ESP32 → dnsmasq`.
 
 ### Tailscale stays in `SYN_SENT`
 
@@ -144,18 +144,35 @@ Tailscale control-plane names were fake-IP'd. Add to mihomo's `fake-ip-filter`:
 +.ts.net
 ```
 
-### ESP32 unplug causes a whole-house DNS outage
+### ESP32 unplug caused a whole-house DNS outage (historical)
 
-This is real: a 43.1 s outage was measured. `dns_failover.sh` switches dnsmasq to
-the campus DNS after 2 failures and switches back after 3 successes. mihomo is
-not a DNS single point; stopping it did not break DNS or HTTP in the drill.
+When the ESP32 was the dnsmasq upstream, unplugging it caused a measured 43.1 s
+outage. The current architecture removes the ESP32 from the client DNS chain, so
+this failure mode no longer applies to clients. The ESP32 is kept only as an
+optional direct-`.53` fallback.
+
+### mihomo DNS fails
+
+This is the current DNS single point. `dns_failover_mihomo.sh` checks mihomo's
+API (`/version` and `/dns/query`), switches dnsmasq to the campus resolvers
+after one failed check, and switches back after three healthy checks. It only
+reloads dnsmasq; it never restarts mihomo. During fallback, DNS and normal
+internet work, but proxy and ad filtering are suspended.
+
+### mihomo control API is reachable without a password
+
+Check `secret:` in `/etc/mihomo/config.yaml`. An empty value means any client on
+the LAN can call the API. Set a strong secret, validate with `mihomo -t`, reload
+or restart, and confirm unauthenticated requests return 401. Keep port 9090
+bound to the LAN and rejected from the WAN.
 
 ### An ad still appears
 
-DNS filtering is domain-level. Same-domain feed ads, in-app ads served from the
+Filtering is rule/domain-level. Same-domain feed ads, in-app ads served from the
 app's own domain, DoH, Android Private DNS and browser secure DNS can bypass it.
 `doubleclick.net` not being blocked is not necessarily a failure: the list may
-only contain subdomains. Use the ESP32 query log, not one ad, as the signal.
+only contain subdomains. Use mihomo's rule/connection logs, not one ad, as the
+signal.
 
 ## Windows
 

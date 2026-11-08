@@ -284,4 +284,4 @@ Wi-Fi 2.4/5、WAN DHCP、root 密码、软重启都在同一天完成。5G 第�
 
 这次能救回来，靠的不是某个神秘命令，而是三件事：**备份在手、只读证据、以及在没把握的时候停手。**
 
-下一篇写救回之后的事：ESP32 接管 DNS、mihomo 的 fake-IP、PSRAM 的 7 字节 stub，以及一次 43 秒的全屋断网演练。[从能开机到能生活](./dorm-hub.md)。
+下一篇写救回之后的事：ESP32 接管 DNS、mihomo 的 fake-IP、PSRAM 的 7 字节 stub，以及一次 43 秒的全屋断网演练。[从能开机到能生活](./dorm-hub.md)。再往后是把 DNS 链路收敛到 mihomo、全局代理和稳定性加固的完整复盘：[从救砖到托管](./retrospective.md)。

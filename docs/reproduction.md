@@ -119,13 +119,15 @@ replace them if you use a different build.
 
 The script backs up `dhcp`, `firewall` and `/etc/mihomo`, installs `kmod-tun`,
 points dnsmasq at `127.0.0.1:1053`, and starts mihomo. Review the script before
-running it. On MT7621, expect roughly 20 Mbps through a single VLESS/TLS stream;
-direct campus downloads can reach 122 Mbps.
+running it. On MT7621, expect roughly 8–20 Mbps through a single VLESS/TLS
+stream; direct campus downloads can reach 122 Mbps.
 
-## 6. ESP32-S3 DNS filter
+## 6. ESP32-S3 DNS filter (optional, off-chain)
 
-The deployed firmware is Garionhk/ESP32-AdBlocker-N16R8 v1.0.3. Clone the
-upstream project at the v1.0.3 tag/commit, apply the patch, and build:
+The deployed firmware is Garionhk/ESP32-AdBlocker-N16R8 v1.0.3. This device is
+**optional** and no longer in the client DNS chain; keep it only if you want an
+independent fallback. Clone the upstream project at the v1.0.3 tag/commit, apply
+the patch, and build:
 
 ```bash
 git clone https://github.com/Garionhk/ESP32-AdBlocker-N16R8.git
@@ -151,42 +153,49 @@ enable PSRAM. Do not flash that image to a DNS-critical device.
 
 Configure the ESP32 with a static LAN address (for example `192.168.1.53`),
 primary upstream `192.168.1.1:1053`, secondary empty, DoT off if the campus
-network blocks 853.
+network blocks 853. Do **not** point dnsmasq at the ESP32 in the current
+architecture; clients should use mihomo directly.
 
-## 7. DNS chain, failover and blocklist refresh
+## 7. DNS chain, failover and anti-AD refresh
 
-Point dnsmasq at the ESP32:
+Point dnsmasq at mihomo's DNS listener:
 
 ```sh
 uci set dhcp.@dnsmasq[0].noresolv='1'
-uci set dhcp.@dnsmasq[0].server='192.168.1.53'
+uci -q delete dhcp.@dnsmasq[0].server
+uci add_list dhcp.@dnsmasq[0].server='127.0.0.1#1053'
 uci commit dhcp
 /etc/init.d/dnsmasq restart
 ```
 
-Do not point the ESP32 back at `192.168.1.1:53`; that creates a loop. Use the
-mihomo DNS listener on `1053`.
+Do not point the ESP32 or any client back at `192.168.1.1:53` from inside
+dnsmasq; that creates a loop. Use the mihomo DNS listener on `1053`.
 
-Install the failover script and the blocklist updater:
+Install the DNS failover watchdog and the anti-AD refresh script:
 
 ```sh
-cp router/dns_failover.sh /usr/bin/dns_failover.sh
-cp router/blocklist/update_blocklist.sh /usr/bin/update_blocklist.sh
-chmod 755 /usr/bin/dns_failover.sh /usr/bin/update_blocklist.sh
+cp router/dns_failover_mihomo.sh /usr/bin/dns_failover_mihomo.sh
+cp router/blocklist/update_chinese_lists.sh /usr/bin/update_chinese_lists.sh
+chmod 755 /usr/bin/dns_failover_mihomo.sh /usr/bin/update_chinese_lists.sh
 ```
 
-`dns_failover.sh` uses `FAILOVER_FALLBACK_1` / `FAILOVER_FALLBACK_2` (defaults are
-documentation IPs; set your real upstream). It switches after 2 consecutive
-failures and switches back after 3 successes.
+`dns_failover_mihomo.sh` checks mihomo's API (`/version` and `/dns/query`), then
+switches dnsmasq to the campus resolvers after one failed check and switches
+back after three healthy checks. It only reloads dnsmasq; it never restarts
+mihomo. Set `FAILOVER_FALLBACK_1` and `FAILOVER_FALLBACK_2` to your campus
+resolvers (the defaults are documentation IPs).
 
-The blocklist updater defaults to Hagezi Pro and keeps a `.bak`. Add a cron
-entry that runs before the ESP32's own refresh:
+The anti-AD updater downloads Anti-AD and Hagezi Light, merges them, converts the
+list to MRS, validates the config, and hot-reloads the provider through the
+mihomo API. Add cron entries:
 
 ```text
-40 18 * * * /usr/bin/update_blocklist.sh
+* * * * * /usr/bin/dns_failover_mihomo.sh run
+45 18 * * * /usr/bin/update_chinese_lists.sh
 ```
 
-The time above is UTC; adjust for your timezone.
+The time above is UTC; adjust for your timezone. Keep the old `.mrs`/`.yaml`
+files; the script restores them if validation fails.
 
 ## 8. Wake-on-LAN and Tailscale
 
@@ -242,12 +251,18 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\windows\proxy_setup\uninst
 
 - [ ] `ping 192.168.1.1` has 0% loss.
 - [ ] SSH 22 and HTTP 80 are reachable on the LAN.
-- [ ] `nslookup pagead2.googlesyndication.com 192.168.1.1` returns `0.0.0.0`.
+- [ ] `nslookup pagead2.googlesyndication.com 192.168.1.1` returns a fake-IP
+      (`198.18.x`), and `curl` to it is rejected at connection time.
 - [ ] `nslookup www.baidu.com 192.168.1.1` returns a fake-IP (`198.18.x`).
-- [ ] ESP32 unplug: new DNS queries fail; failover switches within about a minute.
-- [ ] ESP32 replug: failover switches back after three successes.
-- [ ] mihomo stop: DNS/HTTP still work; proxy and fake-IP are lost.
+- [ ] `dnsmasq` upstream is `127.0.0.1#1053`; `noresolv=1`.
+- [ ] Stop mihomo DNS (or use the failover test hook): dnsmasq switches to campus
+      DNS within about a minute; after three healthy checks it switches back.
+- [ ] anti-AD refresh: `mihomo -t` passes, the provider hot-reloads with 204, and
+      the process PID does not change.
+- [ ] mihomo process restart: DNS failover covers the gap; proxy returns in ~5–10 s.
 - [ ] Power-cycle the router: UBI attach, Wi-Fi, WAN and DNS recover.
+- [ ] mihomo API: no secret returns 401; with the configured secret returns 200;
+      port 9090 is not reachable from the WAN.
 - [ ] WoL: wrong token rejected, correct token accepted (real wake if the target is wired).
 - [ ] Tailscale: local `wol.html` reachable from the tailnet; phone test if needed.
 - [ ] Windows: on the router Wi-Fi, the system proxy is off; on another Wi-Fi, Clash is used.
@@ -258,6 +273,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\windows\proxy_setup\uninst
 - Do not use U-Boot menu 2 or 7/9 as a recovery path.
 - Do not write `rootfs0` without a proven root shell and a second backup.
 - Do not expose SSH, LuCI, the mihomo API or WoL to the WAN.
+- Do not leave the mihomo API `secret` empty on a shared LAN.
 - Do not publish raw UART logs or `printenv` output.
 - Do not treat `mtd verify`, a 1 Gbps link or a single ping as proof of a working
   boot.
