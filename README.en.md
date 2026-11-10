@@ -28,6 +28,8 @@ One R3G turns a dorm network into:
   per-device app;
 - if mihomo's DNS fails, dnsmasq falls back to the campus resolver and switches
   back automatically;
+- when the campus portal drops the session, the router logs in again with the
+  account stored on the device, and never logs in while a session is online;
 - you can wake the PC from outside the dorm through a Tailscale-reachable WoL
   page;
 - after a router power cycle, Wi-Fi, WAN, DNS and the proxy recover
@@ -122,7 +124,7 @@ Failure modes are in [docs/architecture.md](docs/architecture.md) and
 | Path | What it is | Start here |
 |---|---|---|
 | [uart-toolkit/](uart-toolkit/) | Read-only capture, fixed `printenv` probe, TFTP initramfs, sysupgrade helpers | [README](uart-toolkit/README.md) |
-| [router/](router/) | mihomo install/rollback, DNS failover, anti-AD refresh, WoL CGI | [README](router/README.md) |
+| [router/](router/) | mihomo install/rollback, DNS failover, anti-AD refresh, WoL CGI, portal auto-login | [README](router/README.md) |
 | [esp32/](esp32/) | Patch, PlatformIO build, flash and DNS verification tools (optional fallback) | [README](esp32/README.md) |
 | [windows/](windows/) | Dual-NIC setup, WoL sender/checker, proxy-mode scheduler | [README](windows/README.md) |
 | [docs/](docs/) | Reproduction guide, architecture, troubleshooting, sanitized evidence | [reproduction.md](docs/reproduction.md) |
@@ -159,6 +161,7 @@ Failure modes are in [docs/architecture.md](docs/architecture.md) and
 | anti-AD filtering | Verified: 177,307 MRS rules, connection-layer `REJECT`, 4–7 s load |
 | anti-AD daily refresh | Verified: `mihomo -t` + `PUT /providers/rules/antiad` hot reload, 204, zero restart |
 | DNS failover | Verified by controlled drill: 1 failure switches to campus DNS, 3 successes switch back; real kill not rehearsed |
+| Campus portal auto-login | Verified by controlled drill: after a logout the script logged in and verified the session (`nasId=52`); natural expiry still to observe |
 | NCSI direct | Verified: Windows probe endpoints 200, PC reports Internet |
 | ESP32 DNS filtering | Historically verified: 211,465 domains, 2.1 s flash restore; now off-chain |
 | WoL endpoint | Token rejection/acceptance verified; real wake not yet tested |
@@ -217,7 +220,8 @@ are intentionally excluded here.
 │   ├── flash/                # unlock, USB recovery, NAS notes
 │   └── link-diagnosis/       # NIC cross-test methodology
 ├── uart-toolkit/             # scripts, tests, wiring/decision-tree docs
-├── router/                   # mihomo, DNS failover, anti-AD, WoL
+├── router/                   # mihomo, DNS failover, anti-AD, WoL, portal auto-login
+│   └── portal_autologin/     # campus portal session keeper (scripts + notes)
 ├── esp32/                    # patch, build, flash and DNS tools
 ├── windows/                  # proxy-mode, WoL, dual-NIC scripts
 ├── SECURITY.md
@@ -238,6 +242,7 @@ are intentionally excluded here.
 | [docs/evidence/](docs/evidence/) | Sanitized boot log, `printenv`, UBI and PSRAM evidence |
 | [uart-toolkit/README.md](uart-toolkit/README.md) | What each UART tool does and how to self-test |
 | [router/README.md](router/README.md) | mihomo, failover, anti-AD and WoL scripts |
+| [router/portal_autologin/README.md](router/portal_autologin/README.md) | Campus portal auto-login: deployment, nasId, troubleshooting |
 | [esp32/README.md](esp32/README.md) | Patch, PSRAM build, flash and DNS verification |
 | [windows/README.md](windows/README.md) | Proxy mode, WoL sender and dual-NIC helpers |
 

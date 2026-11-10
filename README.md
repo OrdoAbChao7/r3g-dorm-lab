@@ -22,6 +22,7 @@ UBI `PEB 256`、11 字节 UART 探针、ESP32 PSRAM stub、一次 43 秒的全�
 - 所有连上 Wi-Fi 的设备自动走全局代理：国内直连、国外走代理，Windows 不再手动切系统代理；
 - 广告和跟踪域名在 mihomo 规则层被 `REJECT`，不需要每台设备装软件；
 - mihomo DNS 故障时自动回退校园 DNS，恢复后自动切回；
+- 校园网门户会话掉线后自动用本机保存的账号重新登录（在线时不动，掉线才登录）；
 - 人不在寝室，也能通过 Tailscale 打开 WoL 页面把电脑唤醒；
 - 路由器断电重启后，Wi-Fi、WAN、DNS 和代理自动恢复；
 - ESP32-S3 可选保留为独立 DNS 回退，但已不在客户端 DNS 链路上。
@@ -55,6 +56,7 @@ Address: 198.18.0.83
 | 室友设备 | 各自配置 DNS / 代理 | DHCP 统一下发 `192.168.1.1` |
 | 人不在寝室 | 电脑关机后无法开机 | Tailscale + WoL 页面 |
 | mihomo DNS 故障 | 全屋 DNS 中断 | watchdog 自动回落校园 DNS |
+| 校园门户掉线 | 手动打开门户登录 | 脚本自动登录并验证（在线时不动） |
 | 路由器重启 | 需要手动逐项检查 | Wi-Fi / WAN / DNS / 代理自动恢复 |
 
 > 这是目标状态。DNS/规则过滤只覆盖域名级广告；同域信息流、App 内广告、DoH 和手机
@@ -144,6 +146,7 @@ mihomo 后少了一跳，规则从 103k 扩到 177k，更新可以热重载而�
 | anti-AD 去广告 | 已验证：177,307 条 MRS，连接层 `REJECT`，加载 4–7 秒 |
 | anti-AD 日更 | 已验证：`mihomo -t` + `PUT /providers/rules/antiad` 热重载，204，零重启 |
 | DNS 自动回退 | 受控演练验证：1 次失败切校园 DNS，3 次成功回切；真实 kill 未演练 |
+| 校园门户自动重登录 | 受控演练验证：注销后自动登录并验证在线（`nasId=52`）；自然过期待观察 |
 | NCSI 直连 | 已验证：Windows 检测端点 200，PC 显示 Internet |
 | ESP32 DNS 过滤 | 历史验证：211,465 条、2.1 秒 flash 恢复；现已 off-chain |
 | WoL 端点 | 口令拒绝/接受已验证；真实唤醒尚未测试 |
@@ -195,7 +198,8 @@ mihomo 后少了一跳，规则从 103k 扩到 177k，更新可以热重载而�
 │   ├── flash/                # 解锁、USB 恢复、NAS 笔记
 │   └── link-diagnosis/       # 网卡交叉测试方法
 ├── uart-toolkit/             # 脚本、测试、接线/决策树文档
-├── router/                   # mihomo、DNS failover、anti-AD、WoL
+├── router/                   # mihomo、DNS failover、anti-AD、WoL、门户自动登录
+│   └── portal_autologin/     # 校园门户会话保活（脚本 + 说明）
 ├── esp32/                    # 补丁、构建、刷写与 DNS 工具
 ├── windows/                  # 代理模式、WoL、双网卡脚本
 ├── SECURITY.md
@@ -216,6 +220,7 @@ mihomo 后少了一跳，规则从 103k 扩到 177k，更新可以热重载而�
 | [docs/evidence/](docs/evidence/) | 脱敏的启动日志、`printenv`、UBI 与 PSRAM 证据 |
 | [uart-toolkit/README.md](uart-toolkit/README.md) | UART 工具说明与离线自测 |
 | [router/README.md](router/README.md) | mihomo、failover、anti-AD 与 WoL 脚本 |
+| [router/portal_autologin/README.md](router/portal_autologin/README.md) | 校园门户自动重登录：部署、nasId、排错 |
 | [esp32/README.md](esp32/README.md) | 补丁、PSRAM 构建、刷写与 DNS 验证 |
 | [windows/README.md](windows/README.md) | 代理模式、WoL 发送与双网卡工具 |
 

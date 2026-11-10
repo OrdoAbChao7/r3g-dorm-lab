@@ -45,6 +45,15 @@ Install it on cron (every minute) after testing manually.
 `dns_failover.sh` is the older ESP32-upstream watchdog, kept for the historical
 two-layer architecture. Do not run both.
 
+## Portal auto-login
+
+`portal_autologin/` keeps the campus wired-portal session alive. It never posts
+a login while a session is online; when the status endpoint reports no session
+it logs in with the credentials from `/etc/portal/login.conf` (mode 600) and the
+BRAS `nasId` from `/etc/portal/nas.conf`, then verifies the session. A captcha
+answer stops it for 30 minutes. See
+[portal_autologin/README.md](portal_autologin/README.md).
+
 ## Blocklist refresh
 
 `blocklist/update_chinese_lists.sh` is the current anti-AD refresher:
