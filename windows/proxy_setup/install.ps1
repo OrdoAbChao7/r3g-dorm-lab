@@ -77,7 +77,18 @@ if (Test-Path -LiteralPath $vergeYaml) {
 
 Write-Host '[5/6] 注册计划任务 ...'
 $script = Join-Path $here 'proxy-mode.ps1'
-$runner = Join-Path $here 'run-proxy-mode.cmd'
+$hiddenRunner = Join-Path $here 'run-proxy-mode-hidden.vbs'
+if (-not (Test-Path -LiteralPath $hiddenRunner)) {
+  Set-Content -LiteralPath $hiddenRunner -Encoding ASCII -Value @'
+Set fso = CreateObject("Scripting.FileSystemObject")
+Set sh = CreateObject("WScript.Shell")
+dir = fso.GetParentFolderName(WScript.ScriptFullName)
+sh.CurrentDirectory = dir
+sh.Run """" & dir & "\run-proxy-mode.cmd""", 0, False
+'@
+}
+# 计划任务通过 wscript 启动，避免每分钟弹出终端窗口
+$runner = '"C:\Windows\System32\wscript.exe" //B //Nologo "' + $hiddenRunner + '"'
 
 $registered = $false
 try {
