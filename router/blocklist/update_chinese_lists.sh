@@ -5,7 +5,7 @@
 #
 # Install as /usr/bin/update_chinese_lists.sh and run from cron, e.g.:
 #   45 18 * * * /usr/bin/update_chinese_lists.sh
-# Set FAILOVER_API and the rule-provider name below if they differ.
+# Set MIHOMO_API and the rule-provider name below if they differ.
 
 LOG=/www/chinese_update.log
 ANTIAD=/www/antiad.txt
@@ -17,6 +17,9 @@ A_URL=https://anti-ad.net/domains.txt
 L_URL=https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/light.txt
 API="${MIHOMO_API:-http://192.168.1.1:9090}"
 PROVIDER="${MIHOMO_PROVIDER:-antiad}"
+API_HOST=$(printf '%s' "$API" | sed -e 's#^http://##' -e 's#^https://##' -e 's#/.*##' -e 's#:.*##')
+API_PORT=$(printf '%s' "$API" | sed -n 's#^[^:]*://[^:]*:\([0-9]*\).*#\1#p')
+[ -n "$API_PORT" ] || API_PORT=9090
 
 log() { echo "$(date '+%Y-%m-%d %H:%M:%S') $*" >> "$LOG"; }
 
@@ -77,7 +80,7 @@ if [ "$M_LINES" -gt 50000 ]; then
         mv /etc/mihomo/ruleset/anti-ad.txt.new /etc/mihomo/ruleset/anti-ad.txt
         if /usr/bin/mihomo -t -d /etc/mihomo -f /etc/mihomo/config.yaml >/dev/null 2>&1; then
           SECRET=$(awk "/^secret:/{print \$2}" /etc/mihomo/config.yaml | tr -d '"')
-          printf "PUT /providers/rules/%s HTTP/1.1\r\nHost: 192.168.1.1:9090\r\nAuthorization: Bearer %s\r\nContent-Length: 0\r\nConnection: close\r\n\r\n" "$PROVIDER" "$SECRET" | nc 192.168.1.1 9090 | grep -q "204 No Content"
+          printf "PUT /providers/rules/%s HTTP/1.1\r\nHost: %s:%s\r\nAuthorization: Bearer %s\r\nContent-Length: 0\r\nConnection: close\r\n\r\n" "$PROVIDER" "$API_HOST" "$API_PORT" "$SECRET" | nc "$API_HOST" "$API_PORT" | grep -q "204 No Content"
           if [ $? -eq 0 ]; then
             log "merged ok lines=${M_LINES} yaml=${Y_LINES} mrs=${MRS_SIZE} provider hot-reloaded"
           else
