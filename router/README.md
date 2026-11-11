@@ -45,14 +45,39 @@ Install it on cron (every minute) after testing manually.
 `dns_failover.sh` is the older ESP32-upstream watchdog, kept for the historical
 two-layer architecture. Do not run both.
 
+## DNS upstream policy
+
+The failover script assumes mihomo is dnsmasq's only upstream. Inside mihomo,
+split the upstream by domain so foreign names are not resolved locally:
+
+```yaml
+dns:
+  nameserver:
+    - https://1.1.1.1/dns-query#PROXY
+    - https://1.0.0.1/dns-query#PROXY
+  nameserver-policy:
+    "geosite:cn,private":
+      - 202.114.x.x
+      - 202.114.x.y
+  proxy-server-nameserver:
+    - 202.114.x.x
+    - 202.114.x.y
+```
+
+The `#PROXY` suffix is mandatory: a DoH request without it still leaves from the
+local WAN. Validate with `mihomo -t`, hot-reload, and confirm the EDNS resolver
+changes while domestic names still use the campus DNS. Full steps are in
+[docs/reproduction.md](../docs/reproduction.md#dns-upstream-policy).
+
 ## Portal auto-login
 
 `portal_autologin/` keeps the campus wired-portal session alive. It never posts
 a login while a session is online; when the status endpoint reports no session
 it logs in with the credentials from `/etc/portal/login.conf` (mode 600) and the
 BRAS `nasId` from `/etc/portal/nas.conf`, then verifies the session. A captcha
-answer stops it for 30 minutes. See
-[portal_autologin/README.md](portal_autologin/README.md).
+answer stops it for 30 minutes. On the router, set `PORTAL_WAN_DEV=wan` and
+`PORTAL_RECONNECT=1` so a "device IP offline" error can reconnect the WAN once
+per 15 minutes. See [portal_autologin/README.md](portal_autologin/README.md).
 
 ## Blocklist refresh
 

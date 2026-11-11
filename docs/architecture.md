@@ -38,7 +38,10 @@
 
 ```text
 client → dnsmasq 192.168.1.1:53 → mihomo 127.0.0.1:1053
-       → fake-IP / campus upstream
+       → fake-IP
+       → nameserver-policy:
+            geosite:cn / geosite:private → campus DNS
+            everything else              → https://1.1.1.1/dns-query#PROXY
 ```
 
 Rules:
@@ -47,12 +50,49 @@ Rules:
 - dnsmasq uses `noresolv=1` and a single upstream: `127.0.0.1#1053` (mihomo).
 - mihomo uses `198.18.0.1/16` fake-IP and `dns-hijack: any:53`; this is why a
   query sent to "campus DNS" from the LAN can still return `198.18.x`.
+- Domestic and private names stay on the campus resolver; other names use DoH
+  over the proxy. The `#PROXY` suffix is mandatory: a DoH request without it
+  still leaves from the local WAN and the resolver identity does not change.
 - Anti-AD is applied in mihomo's rule layer (`RULE-SET,antiad,REJECT`), not by
   returning `0.0.0.0` at DNS time. A blocked name resolves to a fake-IP and the
   connection is rejected.
 - The ESP32 is **not** in the client DNS chain. If used, it must point its
   upstream at `192.168.1.1:1053` or `127.0.0.1#1053`, never at
   `192.168.1.1:53`; pointing it back at dnsmasq creates a loop.
+
+### Campus portal session
+
+The wired WAN can require a captive-portal login (WHUT uses a srun/BingoCloud
+front end). An unauthenticated session shows an HTTP login page and breaks
+foreign HTTPS with `x509: certificate is not valid for any names`.
+
+`router/portal_autologin/` runs from cron every 3 minutes:
+
+```text
+GET /api/account/status
+  ├─ online  → exit; never post a login
+  └─ offline → csrf token → POST /api/account/login
+       ├─ code 0 → re-check after 2 s; success only if online
+       ├─ code 1 → back off; on "device IP offline", reconnect WAN once/15 min
+       └─ code 2 → captcha; stop for 30 minutes and wait for a human
+```
+
+Two constraints matter more than the state machine:
+
+- **Never log in while online.** The portal may accept the request (`code 0`)
+  and then terminate the original session, leaving `设备IP不在线`.
+- **Use the BRAS redirect `nasId`.** The portal's `/api/config` `default_nas`
+  is only the default page. The real NAS for the wired port is in the redirect
+  URL (`…&nasId=52&…`); a wrong value keeps returning "device IP offline".
+
+### Companion: PC stable facade
+
+On the Windows side the same "one stable entry" rule applies. Apps point at
+`127.0.0.1:17890`; a dispatcher selects `clash-verge(7897)`, `selfproxy(7899)`
+or `DIRECT`. Internal ports are listed once in `ports.json`, and the system
+proxy has a single owner. The PC-side implementation is intentionally not part
+of this repository; the pattern is documented in
+[docs/blog/operations.md](blog/operations.md).
 
 ### DNS chain (historical, 2026-11-08 morning)
 
@@ -73,8 +113,10 @@ an unplug drill caused a 43.1 s whole-house outage. The chain was simplified to
 | mihomo process | TUN/DNAT disappear; proxy and fake-IP lost | dnsmasq failover covers DNS; restart restores proxy in ~5–10 s |
 | dnsmasq | No LAN DNS/DHCP | Recover via LuCI/SSH/UART; keep a LAN management path |
 | R3G | Whole LAN down | Keep a full NAND backup and a UART recovery path |
+| Campus portal session | WAN is up but foreign HTTPS fails with x509 / portal redirect | `portal_autologin.sh` checks status, logs in only when offline, and reconnects WAN on "device IP offline" |
 | Tailscale | Remote access lost; LAN unaffected | Local WoL / LAN management still works |
 | ESP32 | No effect on clients (off-chain) | Direct `.53` can be used as an optional fallback |
+| PC facade | Apps lose their stable proxy entry | Dispatcher health checks and `enforce.ps1`; apps keep the same port |
 
 ## Design constraints
 
@@ -90,6 +132,11 @@ an unplug drill caused a 43.1 s whole-house outage. The chain was simplified to
   [docs/blog/uart-recovery.md](blog/uart-recovery.md).
 - **DNS is a dependency chain.** Every hop must be explicit about who answers
   and which port is used; "the query returned the expected IP" is not enough.
+  The upstream policy must also say *who resolves*: campus DNS for CN/private,
+  DoH over the proxy for everything else.
+- **One stable entry per side.** Router clients use `192.168.1.1:53`; PC apps
+  use the facade `127.0.0.1:17890`. Internal ports belong in one registry, not
+  in every application.
 - **Updates should not restart the proxy.** Convert large rule lists to MRS,
   validate with `mihomo -t`, then hot-reload the provider through the API.
 

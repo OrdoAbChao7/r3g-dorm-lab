@@ -1,4 +1,7 @@
-> 这是两篇中的下篇。上篇写 R3G 怎么从半套固件和 1 秒复位里被 UART 救回来：[只刷了 kernel1](./uart-recovery.md)。
+> **R3G 宿舍网络系列 · 阶段 2/4：中枢**
+> [阶段 1 救砖](./uart-recovery.md) · **阶段 2 中枢（本篇）** · [阶段 3 复盘](./retrospective.md) · [阶段 4 运维](./operations.md)
+>
+> 上篇写 R3G 怎么从半套固件和 1 秒复位里被 UART 救回来：[只刷了 kernel1](./uart-recovery.md)。
 >
 > **2026-11-08 晚更新**：本文记录的是 ESP32 在客户端 DNS 链路上的阶段。之后链路已改为 `dnsmasq → mihomo 127.0.0.1#1053`，ESP32 退出客户端链路；去广告改由 mihomo anti-AD MRS 在连接层完成，DNS 回退改为 `dns_failover_mihomo.sh`。最新架构与完整复盘见 [项目复盘](./retrospective.md)。
 
@@ -271,4 +274,4 @@ IPv6 也一样：当前 `wan6` 没有全局地址，AAAA 查询为空，RA/DHCPv
 
 这套系统的目标不是“永不断网”，而是**每种断法都有边界**：mihomo DNS 挂了能回落校园 DNS，mihomo 进程挂了不影响普通上网，外网进不来但 Tailscale 能进，配置改了能回滚。做到这一步，它才算从“能开机”变成了“能生活”。
 
-上篇在这里：[只刷了 kernel1](./uart-recovery.md)。后续架构演进与复盘：[项目复盘](./retrospective.md)。
+上篇在这里：[只刷了 kernel1](./uart-recovery.md)。下一篇是架构演进与完整复盘：[从救砖到托管](./retrospective.md)；再往后是日常运维阶段的 DNS 泄露、门户会话与稳定代理入口：[从托管到日常](./operations.md)。

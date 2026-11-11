@@ -1,5 +1,11 @@
 # WifiProxyMode：路由器（WiFi）优先，Clash Verge 备用
 
+> **状态：参考实现（legacy）。** 2026-11-09 起，作者的 PC 改为单一稳定入口
+> `127.0.0.1:17890`（facade + dispatcher + `ports.json` 端口登记表），
+> 应用不再直接依赖 7897/7899。本目录保留的是按网络切换的早期方案，用于追溯与回滚；
+> 如果采用 facade，不要再让应用对齐内部端口。背景见
+> [docs/blog/operations.md](../../docs/blog/operations.md)。
+
 ## 目标
 
 - 连 **R3G-OpenWrt-5G** 时，所有流量由 R3G 路由器上的透明代理分流，本机不再叠一层代理。

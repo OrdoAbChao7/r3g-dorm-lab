@@ -134,6 +134,37 @@ The current chain is `dnsmasq :53 → mihomo 127.0.0.1:1053`. If you add the ESP
 back, its upstream must point at mihomo's dedicated listener (`1053`), never at
 `192.168.1.1:53`; the latter becomes `dnsmasq → ESP32 → dnsmasq`.
 
+### EDNS reports the local ISP (DNS leak)
+
+Traffic goes through the proxy, but the EDNS check page shows a local resolver.
+The client is probably fine; check `dns.nameserver` in mihomo. If every name is
+sent to the campus resolver, foreign names are resolved locally.
+
+Fix: keep `geosite:cn` and `geosite:private` on the campus resolver, send the
+rest to DoH, and **put `#PROXY` on the DoH entries**:
+
+```yaml
+nameserver:
+  - https://1.1.1.1/dns-query#PROXY
+  - https://1.0.0.1/dns-query#PROXY
+nameserver-policy:
+  "geosite:cn,private": [202.114.x.x, 202.114.x.y]
+proxy-server-nameserver: [202.114.x.x, 202.114.x.y]
+```
+
+DoH without `#PROXY` still leaves from the local WAN. Verify with
+`https://edns.ip-api.com/json`; the resolver should change (Cloudflare in the
+reference deployment).
+
+### The check page shows a Chinese exit IP, but Claude sees the proxy
+
+The page's "China exit" line is usually a direct request to a domestic service
+(`my.ip.cn`, `2026.ip138.com`). Those names follow `GEOIP,CN,DIRECT`, so they
+see the real exit; the Claude endpoint still uses the proxy. Judge by
+`https://claude.ai/cdn-cgi/trace`, not by one line on a dashboard. Do not switch
+to global mode to make the page green — global mode bypasses anti-AD, NCSI and
+the direct exceptions.
+
 ### Tailscale stays in `SYN_SENT`
 
 Tailscale control-plane names were fake-IP'd. Add to mihomo's `fake-ip-filter`:
@@ -174,6 +205,41 @@ app's own domain, DoH, Android Private DNS and browser secure DNS can bypass it.
 only contain subdomains. Use mihomo's rule/connection logs, not one ad, as the
 signal.
 
+## Campus portal
+
+### HTTP shows a login page and HTTPS fails with `x509`
+
+The WAN is on a captive portal and the session is not authenticated. Log in from
+a device on the router LAN (the portal binds the WAN IP/MAC), then verify with a
+real request through the proxy. Do not start by changing node credentials: a
+working client on another network proves the node is fine.
+
+### Portal login returns `code 1 您的设备IP不在线`
+
+Three common causes, in order:
+
+1. **Wrong `nasId`.** `/api/config` `default_nas` is the portal default page, not
+   the NAS for this port. Read the BRAS redirect URL (`…&nasId=52&…`) and write
+   that value to `/etc/portal/nas.conf`.
+2. **The session was already online.** The portal can accept a duplicate login
+   (`code 0`) and then terminate the original session. Check status first; never
+   log in while online.
+3. **The NAS has not re-registered the WAN IP.** Reconnect WAN (`ifdown wan;
+   ifup wan`), wait up to 60 seconds, then retry once.
+
+### The portal asks for a captcha
+
+Stop. The script exits `code 2` and waits 30 minutes; log in manually. Repeated
+failures are usually a wrong `nasId` or a stale credential, not a reason to retry
+faster.
+
+### The router itself cannot `wget`, `curl` or `apk`
+
+mihomo's nat output rule redirects router-originated TCP to `:45919`, so the
+router's own outbound requests fail with `Operation not permitted`. The campus
+portal (`172.30.0.0/12`) is excluded from TUN and is unaffected. Do not diagnose
+this as a mirror or DNS problem.
+
 ## Windows
 
 ### Double proxy or terminals ignoring the proxy
@@ -183,6 +249,24 @@ Verge's own system proxy/TUN. The `proxy_setup` scripts manage WinINET and the
 user environment variables and require Verge's system proxy/TUN to stay off.
 `InternetSetOption(39/37)` is needed for browsers to notice a WinINET change;
 environment variables only affect newly started processes.
+
+If you run a stable facade (for example `127.0.0.1:17890`), keep every app on
+the facade and keep internal ports in one registry. Changing an app to match an
+internal port only hides the next port change.
+
+### The browser times out on the campus portal, but `curl --noproxy '*'` works
+
+The portal request is going through the proxy. The portal binds the source IP
+and resets proxied requests. Add direct rules before the catch-all:
+
+```yaml
+- IP-CIDR,172.30.0.0/12,DIRECT,no-resolve
+- IP-CIDR,10.84.0.0/15,DIRECT,no-resolve
+- DOMAIN-SUFFIX,whut.edu.cn,DIRECT
+```
+
+`--noproxy '*'` only bypasses the command line; the browser and the system proxy
+still need the rules.
 
 ### WoL sends but the PC does not wake
 

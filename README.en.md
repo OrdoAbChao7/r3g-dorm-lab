@@ -13,9 +13,15 @@ Wake-on-LAN and Tailscale.
 
 Most write-ups stop at `sysupgrade successful`. This one keeps the evidence: the
 half-flashed dual-slot firmware, the UBI `PEB 256` failure, the 11-byte UART
-probe, the ESP32 PSRAM stub, a 43-second whole-house DNS outage drill, and the
-later decision to collapse the DNS chain from ESP32 into mihomo. The scripts and
-sanitized logs are here so you can reproduce the path — or avoid the traps.
+probe, the ESP32 PSRAM stub, a 43-second whole-house DNS outage drill, the later
+decision to collapse the DNS chain from ESP32 into mihomo, and the follow-up work
+on DNS leaks, campus portal sessions and a stable PC proxy entry point. The
+scripts and sanitized logs are here so you can reproduce the path — or avoid the
+traps.
+
+The long-form series has four stages: [rescue](docs/blog/uart-recovery.md) →
+[hub](docs/blog/dorm-hub.md) → [retrospective](docs/blog/retrospective.md) →
+[operations](docs/blog/operations.md).
 
 ## What you get
 
@@ -26,6 +32,8 @@ One R3G turns a dorm network into:
   manual proxy switching;
 - ad and tracking domains are rejected in mihomo's rule layer, with no
   per-device app;
+- foreign names are resolved through DoH over the proxy while domestic names
+  keep using the campus resolver, so EDNS does not leak;
 - if mihomo's DNS fails, dnsmasq falls back to the campus resolver and switches
   back automatically;
 - when the campus portal drops the session, the router logs in again with the
@@ -95,6 +103,8 @@ Campus WAN (DHCP)
    R3G v1 / OpenWrt 25.12.6
       ├─ Wi-Fi 2.4/5 + LAN ── phone / PC / IoT
       ├─ dnsmasq :53 ── 127.0.0.1#1053 ── mihomo DNS (fake-IP)
+      │                        ├─ geosite:cn/private → campus DNS
+      │                        ├─ others → DoH #PROXY (Cloudflare)
       │                        ├─ RULE-SET,antiad,REJECT
       │                        ├─ GEOIP,CN,DIRECT
       │                        └─ MATCH,PROXY
@@ -128,7 +138,7 @@ Failure modes are in [docs/architecture.md](docs/architecture.md) and
 | [esp32/](esp32/) | Patch, PlatformIO build, flash and DNS verification tools (optional fallback) | [README](esp32/README.md) |
 | [windows/](windows/) | Dual-NIC setup, WoL sender/checker, proxy-mode scheduler | [README](windows/README.md) |
 | [docs/](docs/) | Reproduction guide, architecture, troubleshooting, sanitized evidence | [reproduction.md](docs/reproduction.md) |
-| [docs/blog/](docs/blog/) | Three long-form write-ups: rescue, DNS hub, retrospective | [retrospective.md](docs/blog/retrospective.md) |
+| [docs/blog/](docs/blog/) | Four long-form write-ups: rescue, hub, retrospective, operations (plus series index) | [README.md](docs/blog/README.md) |
 
 ## Quick start
 
@@ -141,13 +151,20 @@ Failure modes are in [docs/architecture.md](docs/architecture.md) and
 4. Install OpenWrt with the sysupgrade path. The failure that made this
    necessary is documented in [docs/blog/uart-recovery.md](docs/blog/uart-recovery.md).
 5. Configure mihomo and the DNS chain: [router/README.md](router/README.md).
-6. Optional: keep the ESP32 as an independent DNS fallback, see
+6. Split the DNS upstream to avoid EDNS leaks: domestic/private names use the
+   campus resolver, everything else uses DoH with `#PROXY`. See
+   [reproduction.md](docs/reproduction.md#dns-upstream-policy).
+7. If the campus portal requires authentication, deploy the auto-login helper:
+   [router/portal_autologin/](router/portal_autologin/). It does nothing while a
+   session is online.
+8. Optional: keep the ESP32 as an independent DNS fallback, see
    [esp32/README.md](esp32/README.md).
-7. Add remote power-on: [router/wol/](router/wol/) and
+9. Add remote power-on: [router/wol/](router/wol/) and
    [docs/blog/dorm-hub.md](docs/blog/dorm-hub.md).
-8. On Windows, use [windows/proxy_setup/](windows/proxy_setup/) so the local
-   proxy follows the current network.
-9. Run the [acceptance checklist](docs/reproduction.md#10-acceptance-checklist).
+10. On Windows, use [windows/proxy_setup/](windows/proxy_setup/) so the local
+    proxy follows the current network; if you adopt a single facade, apps only
+    need the facade port.
+11. Run the [acceptance checklist](docs/reproduction.md#10-acceptance-checklist).
 
 ## Verified status
 
@@ -161,7 +178,10 @@ Failure modes are in [docs/architecture.md](docs/architecture.md) and
 | anti-AD filtering | Verified: 177,307 MRS rules, connection-layer `REJECT`, 4–7 s load |
 | anti-AD daily refresh | Verified: `mihomo -t` + `PUT /providers/rules/antiad` hot reload, 204, zero restart |
 | DNS failover | Verified by controlled drill: 1 failure switches to campus DNS, 3 successes switch back; real kill not rehearsed |
+| DNS leak fix | Verified: foreign names use DoH over the proxy, EDNS reports Cloudflare; domestic names use the campus resolver |
+| Claude / Anthropic routing | Verified: explicit domain and IP rules hit `PROXY`; `claude.ai` reports a proxy exit IP |
 | Campus portal auto-login | Verified by controlled drill: after a logout the script logged in and verified the session (`nasId=52`); natural expiry still to observe |
+| PC stable facade 17890 | Verified: failover in 1–8.3 s, recovery in about 1.8 s; the PC-side implementation is not in this repository |
 | NCSI direct | Verified: Windows probe endpoints 200, PC reports Internet |
 | ESP32 DNS filtering | Historically verified: 211,465 domains, 2.1 s flash restore; now off-chain |
 | WoL endpoint | Token rejection/acceptance verified; real wake not yet tested |
@@ -183,6 +203,12 @@ are intentionally excluded here.
 - **Make the DNS chain explicit.** The client DNS is dnsmasq `:53`; its upstream
   is mihomo `127.0.0.1#1053`. If the ESP32 participates, it may only point at
   `1053`, never back at `192.168.1.1:53`.
+- **Split the DNS upstream.** `geosite:cn` and `geosite:private` use the campus
+  resolver; everything else uses DoH with `#PROXY`. DoH without `#PROXY` still
+  leaves from the local WAN, so the resolver identity does not change.
+- **Apps only know the facade.** On the PC, apps write one stable entry point and
+  internal ports live in `ports.json`; on the router, clients only use
+  `192.168.1.1:53`. Never align an app to an internal port.
 - **Measure single points.** The ESP32 once caused a 43.1 s outage; after the
   migration mihomo DNS is the new single point, covered by
   `dns_failover_mihomo.sh`.
@@ -202,6 +228,9 @@ are intentionally excluded here.
   client on the same LAN control the API without authentication; LAN-only
   binding is not a substitute for authentication.
 - Treat WoL tokens and DNS blocklist URLs as secrets; rotate them if they leak.
+- Keep campus portal passwords in a mode-600 file on the router or in Windows
+  DPAPI; never in scripts, logs or the repository. Check the session status
+  first; never log in again while a session is online.
 - Replace every placeholder (`<repo-root>`, `COMx`, `AA:BB:CC:DD:EE:FF`,
   `192.0.2.x`, `198.51.100.x`, `203.0.113.x`) with your own values.
 - Raw UART logs can contain SN, MAC, PSK and the admin hash. Redact before
@@ -216,7 +245,7 @@ are intentionally excluded here.
 │   ├── reproduction.md
 │   ├── troubleshooting.md
 │   ├── evidence/             # sanitized boot log, flags, PSRAM logs
-│   ├── blog/                 # three long-form write-ups
+│   ├── blog/                 # four long-form write-ups + series index
 │   ├── flash/                # unlock, USB recovery, NAS notes
 │   └── link-diagnosis/       # NIC cross-test methodology
 ├── uart-toolkit/             # scripts, tests, wiring/decision-tree docs
@@ -239,6 +268,8 @@ are intentionally excluded here.
 | [docs/blog/uart-recovery.md](docs/blog/uart-recovery.md) | The long-form rescue story |
 | [docs/blog/dorm-hub.md](docs/blog/dorm-hub.md) | The DNS hub and reliability story (with historical architecture note) |
 | [docs/blog/retrospective.md](docs/blog/retrospective.md) | Project retrospective: decisions, metrics, problems, next steps |
+| [docs/blog/operations.md](docs/blog/operations.md) | Daily operations: DNS leaks, portal sessions, stable proxy entry |
+| [docs/blog/README.md](docs/blog/README.md) | Four-stage series index and reading paths |
 | [docs/evidence/](docs/evidence/) | Sanitized boot log, `printenv`, UBI and PSRAM evidence |
 | [uart-toolkit/README.md](uart-toolkit/README.md) | What each UART tool does and how to self-test |
 | [router/README.md](router/README.md) | mihomo, failover, anti-AD and WoL scripts |

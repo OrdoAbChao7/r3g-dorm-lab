@@ -107,6 +107,43 @@ uci commit uhttpd
 /etc/init.d/uhttpd restart
 ```
 
+### 4.1 Campus portal session
+
+If the WAN is behind a captive portal, authenticate once from a device on the
+R3G LAN (the portal binds the WAN IP/MAC). Before automating it, confirm the
+portal type and the NAS ID:
+
+```sh
+# The real NAS ID is in the BRAS redirect URL, not /api/config default_nas.
+# Example: acip=172.30.1.223&acname=WHUT-Bras-ME60-A&nasId=52
+printf 'NAS_ID=52\n' > /etc/portal/nas.conf
+chmod 600 /etc/portal/nas.conf
+```
+
+Deploy the helper (see [router/portal_autologin/README.md](../router/portal_autologin/README.md)):
+
+```sh
+cp router/portal_autologin/portal_autologin.sh /usr/bin/
+cp router/portal_autologin/portal_set_credentials.sh /usr/bin/
+chmod 755 /usr/bin/portal_autologin.sh /usr/bin/portal_set_credentials.sh
+ssh -t root@192.168.1.1 /usr/bin/portal_set_credentials.sh   # interactive, mode-600 file
+echo '*/3 * * * * /usr/bin/portal_autologin.sh run >/dev/null 2>&1' >> /etc/crontabs/root
+```
+
+The script exits without logging in while a session is online. If it reports
+`设备IP不在线`, reconnect WAN once and re-check before retrying the login.
+
+Also exclude the campus network from the proxy path:
+
+```yaml
+tun:
+  route-exclude-address:
+    - 172.30.0.0/12
+rules:
+  - IP-CIDR,172.30.0.0/12,DIRECT,no-resolve
+  - DOMAIN-SUFFIX,whut.edu.cn,DIRECT
+```
+
 ## 5. mihomo (optional proxy layer)
 
 `router/install_router_proxy.sh` expects four inputs: the mihomo binary, a
@@ -170,6 +207,30 @@ uci commit dhcp
 
 Do not point the ESP32 or any client back at `192.168.1.1:53` from inside
 dnsmasq; that creates a loop. Use the mihomo DNS listener on `1053`.
+
+### DNS upstream policy
+
+Sending every name to the campus resolver leaks foreign names at the DNS layer.
+Keep CN/private names local and resolve the rest through DoH over the proxy:
+
+```yaml
+dns:
+  nameserver:
+    - https://1.1.1.1/dns-query#PROXY
+    - https://1.0.0.1/dns-query#PROXY
+  nameserver-policy:
+    "geosite:cn,private":
+      - 202.114.x.x
+      - 202.114.x.y
+  proxy-server-nameserver:
+    - 202.114.x.x
+    - 202.114.x.y
+```
+
+`#PROXY` is part of the address. Without it the DoH request still leaves from
+the local WAN and the resolver identity does not change. Validate with
+`mihomo -t`, hot-reload, and confirm the EDNS resolver changes while domestic
+sites still resolve through the campus DNS.
 
 Install the DNS failover watchdog and the anti-AD refresh script:
 
@@ -247,6 +308,11 @@ Rollback:
 powershell -NoProfile -ExecutionPolicy Bypass -File .\windows\proxy_setup\uninstall.ps1
 ```
 
+This `WifiProxyMode` is the original per-network switch and is kept for
+reference. If you adopt a single facade/dispatcher, apps only need the facade
+port, internal ports live in one registry (`ports.json`), and the system proxy
+has exactly one owner. See [docs/blog/operations.md](blog/operations.md).
+
 ## 10. Acceptance checklist
 
 - [ ] `ping 192.168.1.1` has 0% loss.
@@ -263,9 +329,16 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\windows\proxy_setup\uninst
 - [ ] Power-cycle the router: UBI attach, Wi-Fi, WAN and DNS recover.
 - [ ] mihomo API: no secret returns 401; with the configured secret returns 200;
       port 9090 is not reachable from the WAN.
+- [ ] DNS leak: the EDNS resolver is the proxy-side DoH resolver (Cloudflare in
+      the reference deployment); domestic names still use the campus DNS.
+- [ ] Portal: `portal_autologin.sh status` reports online; a controlled logout
+      is recovered without posting a login while the session is online.
 - [ ] WoL: wrong token rejected, correct token accepted (real wake if the target is wired).
 - [ ] Tailscale: local `wol.html` reachable from the tailnet; phone test if needed.
 - [ ] Windows: on the router Wi-Fi, the system proxy is off; on another Wi-Fi, Clash is used.
+- [ ] If a PC facade is used: `curl -x http://127.0.0.1:17890
+      https://www.gstatic.com/generate_204` returns 204, and the campus portal
+      stays direct.
 
 ## 11. Do not
 
@@ -274,6 +347,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\windows\proxy_setup\uninst
 - Do not write `rootfs0` without a proven root shell and a second backup.
 - Do not expose SSH, LuCI, the mihomo API or WoL to the WAN.
 - Do not leave the mihomo API `secret` empty on a shared LAN.
+- Do not log in to the campus portal while a session is online; check status
+  first. Do not store portal credentials outside a mode-600 file or DPAPI.
+- Do not hardcode internal proxy ports in applications; give them one facade.
 - Do not publish raw UART logs or `printenv` output.
 - Do not treat `mtd verify`, a 1 Gbps link or a single ping as proof of a working
   boot.

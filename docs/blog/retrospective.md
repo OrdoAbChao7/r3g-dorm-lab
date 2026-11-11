@@ -1,6 +1,9 @@
 # 从救砖到托管：一台 R3G 的项目复盘
 
-> 这是系列的第三篇。上篇写 UART 救砖：[只刷了 kernel1](./uart-recovery.md)；中篇写 DNS 中枢与可靠性：[从能开机到能生活](./dorm-hub.md)。这一篇不再讲单个坑，而是复盘整个项目：哪些决策是对的，哪些数字是真的，哪些问题被测量纠正，以及现在还剩什么。
+> **R3G 宿舍网络系列 · 阶段 3/4：复盘**
+> [阶段 1 救砖](./uart-recovery.md) · [阶段 2 中枢](./dorm-hub.md) · **阶段 3 复盘（本篇）** · [阶段 4 运维](./operations.md)
+>
+> 这一篇不再讲单个坑，而是复盘整个项目：哪些决策是对的，哪些数字是真的，哪些问题被测量纠正，以及现在还剩什么。
 
 ## 一句话结论
 
@@ -197,4 +200,4 @@ PC 实测两个端点 200，连接配置文件显示 Internet；代理控制组 
 
 代码与复现：[github.com/OrdoAbChao7/r3g-dorm-lab](https://github.com/OrdoAbChao7/r3g-dorm-lab)
 
-上篇：[只刷了 kernel1](./uart-recovery.md) · 中篇：[从能开机到能生活](./dorm-hub.md)
+上篇：[只刷了 kernel1](./uart-recovery.md) · 中篇：[从能开机到能生活](./dorm-hub.md) · 下一篇：[从托管到日常](./operations.md)

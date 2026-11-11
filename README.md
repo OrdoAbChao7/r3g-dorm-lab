@@ -11,9 +11,12 @@
 mihomo fake-IP 全局代理、anti-AD 去广告、DNS 自动回退、WoL 与 Tailscale。
 
 大多数文章写到 `sysupgrade successful` 就结束了。这里保留的是证据链：半套固件、
-UBI `PEB 256`、11 字节 UART 探针、ESP32 PSRAM stub、一次 43 秒的全屋断网演练，
-以及后来把 DNS 链路从 ESP32 收敛到 mihomo 的取舍。脚本和脱敏日志都在这里，
-方便你复现路径，或者避开这些坑。
+UBI `PEB 256`、11 字节 UART 探针、ESP32 PSRAM stub、一次 43 秒的全屋断网演练、
+把 DNS 链路从 ESP32 收敛到 mihomo 的取舍，以及后来对 DNS 泄露、校园门户会话和
+PC 稳定代理入口的处理。脚本和脱敏日志都在这里，方便你复现路径，或者避开这些坑。
+
+长文按四个阶段组织：[救砖](docs/blog/uart-recovery.md) → [中枢](docs/blog/dorm-hub.md)
+→ [复盘](docs/blog/retrospective.md) → [运维](docs/blog/operations.md)。
 
 ## 它能做到什么
 
@@ -21,6 +24,7 @@ UBI `PEB 256`、11 字节 UART 探针、ESP32 PSRAM stub、一次 43 秒的全�
 
 - 所有连上 Wi-Fi 的设备自动走全局代理：国内直连、国外走代理，Windows 不再手动切系统代理；
 - 广告和跟踪域名在 mihomo 规则层被 `REJECT`，不需要每台设备装软件；
+- 国外域名经代理 DoH 解析，国内域名继续走校园 DNS，避免 EDNS 泄露；
 - mihomo DNS 故障时自动回退校园 DNS，恢复后自动切回；
 - 校园网门户会话掉线后自动用本机保存的账号重新登录（在线时不动，掉线才登录）；
 - 人不在寝室，也能通过 Tailscale 打开 WoL 页面把电脑唤醒；
@@ -85,6 +89,8 @@ Address: 198.18.0.83
    R3G v1 / OpenWrt 25.12.6
       ├─ Wi-Fi 2.4/5 + LAN ── 手机 / PC / IoT
       ├─ dnsmasq :53 ── 127.0.0.1#1053 ── mihomo DNS (fake-IP)
+      │                        ├─ geosite:cn/private → 校园 DNS
+      │                        ├─ 其他 → DoH #PROXY (Cloudflare)
       │                        ├─ RULE-SET,antiad,REJECT
       │                        ├─ GEOIP,CN,DIRECT
       │                        └─ MATCH,PROXY
@@ -115,7 +121,7 @@ mihomo 后少了一跳，规则从 103k 扩到 177k，更新可以热重载而�
 | [esp32/](esp32/) | 补丁、PlatformIO 构建、刷写与 DNS 验证工具（可选回退设备） | [README](esp32/README.md) |
 | [windows/](windows/) | 双网卡、WoL 发送/检查、代理模式计划任务 | [README](windows/README.md) |
 | [docs/](docs/) | 复现指南、架构、故障排查、脱敏证据 | [reproduction.md](docs/reproduction.md) |
-| [docs/blog/](docs/blog/) | 三篇长文：UART 救砖、DNS 中枢、项目复盘 | [retrospective.md](docs/blog/retrospective.md) |
+| [docs/blog/](docs/blog/) | 四篇长文：救砖、中枢、复盘、运维（含系列索引） | [README.md](docs/blog/README.md) |
 
 ## 快速开始
 
@@ -127,12 +133,16 @@ mihomo 后少了一跳，规则从 103k 扩到 177k，更新可以热重载而�
 4. 用 sysupgrade 路径安装 OpenWrt。导致这次救砖的故障见
    [docs/blog/uart-recovery.md](docs/blog/uart-recovery.md)。
 5. 配置 mihomo 与 DNS 链：[router/README.md](router/README.md)。
-6. 可选：把 ESP32 作为独立 DNS 回退，见 [esp32/README.md](esp32/README.md)。
-7. 加远程开机：[router/wol/](router/wol/) 与
+6. 配置 DNS 上游分流，避免 EDNS 泄露：国内/私网走校园 DNS，其他走带 `#PROXY`
+   的 DoH。见 [reproduction.md](docs/reproduction.md#dns-upstream-policy)。
+7. 校园门户需要认证时，部署自动重登录：
+   [router/portal_autologin/](router/portal_autologin/)。在线时它不会做任何动作。
+8. 可选：把 ESP32 作为独立 DNS 回退，见 [esp32/README.md](esp32/README.md)。
+9. 加远程开机：[router/wol/](router/wol/) 与
    [docs/blog/dorm-hub.md](docs/blog/dorm-hub.md)。
-8. Windows 侧使用 [windows/proxy_setup/](windows/proxy_setup/)，让本机代理跟随
-   当前网络。
-9. 跑一遍[验收清单](docs/reproduction.md#10-acceptance-checklist)。
+10. Windows 侧使用 [windows/proxy_setup/](windows/proxy_setup/)，让本机代理跟随
+    当前网络；如果采用单一 facade，应用只写 facade 端口。
+11. 跑一遍[验收清单](docs/reproduction.md#10-acceptance-checklist)。
 
 ## 已验证状态
 
@@ -146,7 +156,10 @@ mihomo 后少了一跳，规则从 103k 扩到 177k，更新可以热重载而�
 | anti-AD 去广告 | 已验证：177,307 条 MRS，连接层 `REJECT`，加载 4–7 秒 |
 | anti-AD 日更 | 已验证：`mihomo -t` + `PUT /providers/rules/antiad` 热重载，204，零重启 |
 | DNS 自动回退 | 受控演练验证：1 次失败切校园 DNS，3 次成功回切；真实 kill 未演练 |
+| DNS 泄露修复 | 已验证：国外域名经代理 DoH，EDNS 解析器为 Cloudflare；国内域名走校园 DNS |
+| Claude / Anthropic 分流 | 已验证：显式域名与 IP 规则命中 `PROXY`，`claude.ai` 出口为代理 IP |
 | 校园门户自动重登录 | 受控演练验证：注销后自动登录并验证在线（`nasId=52`）；自然过期待观察 |
+| PC 稳定入口 17890 | 已验证：facade 自动切换 1–8.3 秒、恢复约 1.8 秒；PC 侧实现不在本仓库 |
 | NCSI 直连 | 已验证：Windows 检测端点 200，PC 显示 Internet |
 | ESP32 DNS 过滤 | 历史验证：211,465 条、2.1 秒 flash 恢复；现已 off-chain |
 | WoL 端点 | 口令拒绝/接受已验证；真实唤醒尚未测试 |
@@ -166,6 +179,10 @@ mihomo 后少了一跳，规则从 103k 扩到 177k，更新可以热重载而�
   单独、明确的 `sysupgrade`。
 - **DNS 链要显式。** 客户端 DNS 是 dnsmasq `:53`，上游是 mihomo `127.0.0.1#1053`；
   ESP32 若参与，只能指向 `1053`，绝不指回 `192.168.1.1:53`。
+- **DNS 上游按域名分流。** `geosite:cn` 与 `geosite:private` 走校园 DNS，其他走带
+  `#PROXY` 的 DoH；DoH 不带 `#PROXY` 仍然从本地出口发出，解析器身份不变。
+- **应用只认 facade。** PC 侧应用只写一个稳定入口，内部端口集中在 `ports.json`；
+  路由器侧客户端只写 `192.168.1.1:53`。不要为了某个应用去对齐内部端口。
 - **单点要实测。** ESP32 曾造成 43.1 秒中断；迁移后 mihomo DNS 成为新的单点，
   由 `dns_failover_mihomo.sh` 自动回退校园 DNS。
 - **更新不要重启。** anti-AD 日更先 `mihomo -t`，再通过 API 热重载 provider；
@@ -181,6 +198,8 @@ mihomo 后少了一跳，规则从 103k 扩到 177k，更新可以热重载而�
 - **给 mihomo 控制 API 设置非空 `secret`。** `secret: ""` 会让同一 LAN 内任何
   客户端都能无认证控制 API；即使只绑 LAN，也不要把认证边界去掉。
 - 把 WoL 口令和黑名单 URL 当秘密处理；泄露后立即轮换。
+- 校园门户密码只放在路由器 600 权限文件或 Windows DPAPI 中；不要写进脚本、日志或仓库。
+  在线会话存在时不要重复登录，先查状态。
 - 把占位符（`<repo-root>`、`COMx`、`AA:BB:CC:DD:EE:FF`、`192.0.2.x`、
   `198.51.100.x`、`203.0.113.x`）换成你自己的值。
 - 原始 UART 日志可能包含 SN、MAC、Wi-Fi PSK 和管理员密码哈希；发布前必须脱敏。
@@ -194,7 +213,7 @@ mihomo 后少了一跳，规则从 103k 扩到 177k，更新可以热重载而�
 │   ├── reproduction.md
 │   ├── troubleshooting.md
 │   ├── evidence/             # 脱敏后的启动日志、flags、PSRAM 日志
-│   ├── blog/                 # 三篇长文
+│   ├── blog/                 # 四篇长文 + 系列索引
 │   ├── flash/                # 解锁、USB 恢复、NAS 笔记
 │   └── link-diagnosis/       # 网卡交叉测试方法
 ├── uart-toolkit/             # 脚本、测试、接线/决策树文档
@@ -217,6 +236,8 @@ mihomo 后少了一跳，规则从 103k 扩到 177k，更新可以热重载而�
 | [docs/blog/uart-recovery.md](docs/blog/uart-recovery.md) | UART 救砖长文 |
 | [docs/blog/dorm-hub.md](docs/blog/dorm-hub.md) | DNS 中枢与可靠性长文（含历史架构说明） |
 | [docs/blog/retrospective.md](docs/blog/retrospective.md) | 项目复盘：决策、指标、问题与下一步 |
+| [docs/blog/operations.md](docs/blog/operations.md) | 日常运维：DNS 泄露、门户会话、稳定代理入口 |
+| [docs/blog/README.md](docs/blog/README.md) | 四阶段系列索引与阅读路径 |
 | [docs/evidence/](docs/evidence/) | 脱敏的启动日志、`printenv`、UBI 与 PSRAM 证据 |
 | [uart-toolkit/README.md](uart-toolkit/README.md) | UART 工具说明与离线自测 |
 | [router/README.md](router/README.md) | mihomo、failover、anti-AD 与 WoL 脚本 |
